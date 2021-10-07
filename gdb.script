@@ -1,0 +1,22 @@
+# gdb script for nasmjf debugging
+
+tui enable
+break _start
+
+# run will stop at first breakpoint
+run
+
+# if we don't step, it seems we can't display registers and such because
+# the program really hasn't started...
+step
+
+# esi - next forth word address to execute
+# ebp - return stack for forth word addresses
+# esp - "normal" stack for params
+
+display/x $eax
+display/x $esi
+display/x $ebp
+display/x $esp
+
+
