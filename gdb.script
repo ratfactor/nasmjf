@@ -10,6 +10,7 @@ run
 # the program really hasn't started...
 step
 
+# Setup register and var auto-displays (shown after every step)
 # esi - next forth word address to execute
 # ebp - return stack for forth word addresses
 # esp - "normal" stack for params
@@ -18,5 +19,6 @@ display/x $eax
 display/x $esi
 display/x $ebp
 display/x $esp
-
+# Need to cast the value (a 32bit address) at Forth var S0
+display/x (int)var_S0
 

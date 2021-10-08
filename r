@@ -6,6 +6,8 @@
 #   r db     Assemble, link, and debug
 #
 
+-e # die on error
+
 F=nasmjf
 
 # assemble! (-g enables debugging symbols)

@@ -48,9 +48,12 @@
 SECTION .bss
 return_stack: resb 8192
 var_S0:       resb 4
+data_segment: resb 65535
 
 SECTION .data
 
+cold_start: db quit  ; store address of quit word in cold_start ...hopefully
+quit:       db "foo" ; LOL, just seeing if any of this works
 
 SECTION .text
 
@@ -75,20 +78,9 @@ _start:
            ; as LODSD) work in increment order instead of decrement...
     mov [var_S0], esp ; save the regular stack pointer (used for data) in FORTH var S0!
 
-
-
     mov ebp, return_stack ; Initialise the return stack pointer
 
-    ;call set_up_data_segment
-
-;    mov $cold_start,%esi ; Initialise interpreter.
+    mov esi, cold_start ; give next forth word to execute
 
     NEXT ; Run!
-
-
-;TODO: look up ".int" for GAS and then see QUIT in jf
-
-;cold_start:// High-level code without a codeword.
-;    .int QUIT
-
 
