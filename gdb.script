@@ -1,6 +1,7 @@
 # gdb script for nasmjf debugging
 
-tui enable
+#tui enable
+
 break _start
 
 # run will stop at first breakpoint
@@ -10,6 +11,13 @@ run
 # the program really hasn't started...
 step
 
+# set asm flavor to intel to match NASM
+set disassembly-flavor intel
+
+# show disassembly of next line (in addition to source assembly) each step
+set disassemble-next-line on
+
+
 # Setup register and var auto-displays (shown after every step)
 # esi - next forth word address to execute
 # ebp - return stack for forth word addresses
@@ -17,8 +25,8 @@ step
 
 display/x $eax
 display/x $esi
-display/x $ebp
-display/x $esp
+#display/x $ebp
+#display/x $esp
 # Need to cast the value (a 32bit address) at Forth var S0
 display/x (int)var_S0
 
