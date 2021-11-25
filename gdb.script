@@ -2,7 +2,8 @@
 
 #tui enable
 
-break _start
+#break _start
+break _KEY
 
 # run will stop at first breakpoint
 run
@@ -15,7 +16,10 @@ step
 set disassembly-flavor intel
 
 # show disassembly of next line (in addition to source assembly) each step
-set disassemble-next-line on
+#set disassemble-next-line on
+
+# we don't need to be asked about a bunch of stuff
+set confirm off
 
 
 # Setup register and var auto-displays (shown after every step)
@@ -24,9 +28,14 @@ set disassemble-next-line on
 # esp - "normal" stack for params
 
 display/x $eax
-display/x $esi
+display/x $ebx
+display/x $ecx
+display/x (int)bufftop
+display/x (int)buffer
+display/x (int)currkey
+#display/x $esi
 #display/x $ebp
 #display/x $esp
 # Need to cast the value (a 32bit address) at Forth var S0
-display/x (int)var_S0
+#display/x (int)var_S0
 

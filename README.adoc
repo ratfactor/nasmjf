@@ -1,8 +1,25 @@
 = NASM port of JONESFORTH
 
-NOTE: This is very much an early work in progress! I'm working on it in public. It may never be finished!
+NOTE: This is very much an early work in progress! I'm working on it in public.
+It may never be finished! Commits will come slowly.
 
-I got lotsa notes. Just gonna start this repo with a README for now.
+I got lots of notes. I'll slowly add them.
 
 -Dave
 
+
+== GDB
+
+I've made heavy use of the GNU Debugger to fix mistakes, understand what
+my program is doing, and in these early stages
+
+Show sections of memory:
+
+    maint info sections
+
+Set temporary break and jump to location (by label)
+
+    tbreak docol
+    jump docol
+
+    
