@@ -1,0 +1,44 @@
+# invoked from a shell alias:
+#
+#       alias jf='screen -c nasmjf/screenrc'
+#
+# Where -c tells screen to use the supplied file for initial commands
+# rather than any ~/.screenrc you might have.
+
+# avoid "utmp slot not found message"
+deflogin off
+
+# hush now
+startup_message off
+
+# please
+vbell off
+
+# make the main screen escape Ctrl-j (which is so much easier to type on my
+# little netbook keyboard. Then "Ctrl-j Ctrl-j" toggles between the windows,
+# which is super handy.
+escape ^Jj
+
+# Turns out saving a 'hardcopy' of the scrollback buffer is the best way to
+# save a Screen session. (Logging is awesome, but I quickly realized it was
+# saving ALL of the ANSI sequences sent to the terminal by the application!
+# The hardcopy is just the visible text content of the screen.
+# Let's set it to a thousand lines and rebind "Ctrl-j h" to hardcopy -h,
+# which also saves the scrollback buffer.
+scrollback 1000
+bindkey h hardcopy -h
+
+# Now create two windows. 'screen' is a screen command to create a new window
+# (yeah, confusing in this context) and the bash commands start up with
+# specific applications:
+#   -c runs the specified command in the shell when it starts.
+# The last window we open will be the one we're faced with by default.
+# Unfortunately, there's no easy way to keep Bash running after the command
+# exits... (The -i option for "interactive" shell is essentially ignored)
+#
+# This window attempts to assemble, link, and open GDB
+screen bash -c "cd nasmjf && ./r db"
+#
+# This window contains the source and handy reference.
+screen bash -c "cd nasmjf && vim nasmjf.asm"
+

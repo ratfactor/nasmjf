@@ -8,18 +8,88 @@ I got lots of notes. I'll slowly add them.
 -Dave
 
 
-== GDB
+== GNU Debugger
 
 I've made heavy use of the GNU Debugger to fix mistakes, understand what
-my program is doing, and in these early stages
+my program is doing, and in these early stages, it's nearly the only way
+to tell what's happening in the program at all.
 
-Show sections of memory:
+I'm assembling with DWARF2 debugging info. See the `r` script for params.
 
-    maint info sections
+See `gdb.script` for current defaults I'm using.
+
+Show stuff:
+
+    maint info sections     # memory sections
+    info addr word_buffer   # address of symbol (label/var/func)
+    info sym 0x804c608      # reverse of info addr, symbol at addr
+    info var buff           # list (with addr!) of symbol names w/ "buff"
+    info var                # list ALL symbols
+    info var var_           # list all symbols that start with "var_"
+
+Print values (register,  label, literal numbers (handy as base converter)
+
+    p 0x50                  # prints 80
+    p/x 80                  # prints 0x50
+    p/x (int)some_label     # show 4 bytes (32b) of data at some_label in hex
+    p/x &some_label         # ADDRESS of some_label
+
+Print value at memory location
+
+    x/x &some_label         # show a byte of data at some_label in hex
+    x/s &some_label         # show a string at some_label
+    x/4x &some_label        # show four consecutive bytes
 
 Set temporary break and jump to location (by label)
 
     tbreak docol
     jump docol
 
-    
+Create GDB commands
+
+    define foo
+        p $arg0
+        p $arg1
+    end
+
+== GNU Screen
+
+See the file `screenrc` in this repo to see the current convenience setup.
+In short, I've got a GDB session and Vim session open in separate windows
+so I can quickly toggle between them. Anything outside of those two
+applications is best done in a new window to keep from accidentally closing
+one of the two main windows.
+
+* `C-j C-j` toggle between main windows
+* `C-j c` create a new window with a shell
+* `C-j H` start (or stop) logging window (not actually what I want)
+* `C-j h` save hardcopy of scrollback buffer (actually what I want)
+* `C-j ?` help (show other shortcuts)
+
+I'm using the hardcopy feature to help me record running each milestone of
+progress in GDB sessions to test and document (and celebrate!) the work.
+
+An alias called `rc` starts my two-windowe session like so:
+
+----
+alias jf='screen -c nasmjf/screenrc'
+----
+
+== .vimrc
+
+My whole setup on this machine is dedicated to this project.
+Here's the entirety of my current `.vimrc`:
+
+----
+set tabstop=8 softtabstop=0 expandtab shiftwidth=4 smarttab
+colorscheme elflord
+" my favorite buffer switing mappings
+nnoremap <right> :bn<cr>
+nnoremap <left> :bp<cr>
+" my eeepc chugs when trying to apply highlighting to this large asm file
+au BufRead jonesforth.S set syntax=text nowrap
+au BufRead nasmjf.listing set nowrap
+let mapleader = ","
+" run my 'r' script for nasmjf.asm
+nnoremap <leader>r :!r<cr>
+----

@@ -27,15 +27,19 @@ set confirm off
 # ebp - return stack for forth word addresses
 # esp - "normal" stack for params
 
-display/x $eax
-display/x $ebx
-display/x $ecx
-display/x (int)bufftop
-display/x (int)buffer
-display/x (int)currkey
+#display/x $eax
+#display/x $ebx
+#display/x $ecx
+#display/x (int)bufftop
+#display/x (int)buffer
+#display/x (int)currkey
 #display/x $esi
 #display/x $ebp
 #display/x $esp
 # Need to cast the value (a 32bit address) at Forth var S0
 #display/x (int)var_S0
 
+define jfreg
+    print "Next forth word to exec:"
+    print $esi
+end
