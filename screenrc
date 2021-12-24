@@ -15,7 +15,7 @@ startup_message off
 vbell off
 
 # make the main screen escape Ctrl-j (which is so much easier to type on my
-# little netbook keyboard. Then "Ctrl-j Ctrl-j" toggles between the windows,
+# little netbook keyboard). Then "Ctrl-j Ctrl-j" toggles between the windows,
 # which is super handy.
 escape ^Jj
 
@@ -23,10 +23,10 @@ escape ^Jj
 # save a Screen session. (Logging is awesome, but I quickly realized it was
 # saving ALL of the ANSI sequences sent to the terminal by the application!
 # The hardcopy is just the visible text content of the screen.
-# Let's set it to a thousand lines and rebind "Ctrl-j h" to hardcopy -h,
-# which also saves the scrollback buffer.
-scrollback 1000
-bindkey h hardcopy -h
+# Let's set scrollback buffer default to big.
+defscrollback 5000
+# Bind "Ctrl-j h" to hardcopy -h, which also saves the scrollback buffer.
+bind h hardcopy -h
 
 # Now create two windows. 'screen' is a screen command to create a new window
 # (yeah, confusing in this context) and the bash commands start up with

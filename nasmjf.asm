@@ -209,7 +209,7 @@ _start:
 	call _WORD              ; Returns %ecx = length, %edi = pointer to word.
 
 	; Is it in the dictionary?
-	xor eax,eax             ; back at _WORD...zero eax
+	xor eax,eax             ; back from _WORD...zero eax
 	mov [interpret_is_lit], eax ; 0 means not a literal number (yet)
 	call _FIND              ; Returns %eax = pointer to header or 0 if not found.
 	test eax,eax		; Found?
@@ -310,21 +310,21 @@ _WORD:
 	call _KEY               ; get next key, returned in %eax
 	cmp al,'\'              ; start of a comment?
 	je .skip_comment        ; if so, skip the comment
-	cmp al,' '              ; space?
-	jbe .skip_non_words     ; if so, keep looking
+	cmp al,' '              ; compare to ASCII space (0x20)
+	jbe .skip_non_words     ; Is space or lower, keep scanning
 
         ; now we've reached a word - start storing the chars
 	mov edi,word_buffer     ; put addr to word return buffer in edi
 .collect_word:
 	stosb                   ; add character to return buffer
 	call _KEY               ; get next key, returned in %al
-	cmp al,' '              ; is blank?
-	ja .collect_word        ; if not, keep looping
+	cmp al,' '              ; compare to ASCII space (0x20)
+	ja .collect_word        ; Is higher than space, keep collecting
 
         ; return word buffer addr and length...
-	sub edi, word_buffer    ; hmm, the len?
+	sub edi, word_buffer    ; calculate the length of the word
 	mov ecx, edi            ; return it
-	mov edi, word_buffer    ; return address of the word
+	mov edi, word_buffer    ; return start address of the word
 	ret
 
 .skip_comment: ; skip \ comment to end of current line

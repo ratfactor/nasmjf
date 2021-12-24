@@ -2,8 +2,8 @@
 
 #tui enable
 
-#break _start
-break _KEY
+break _start
+#break _KEY
 
 # run will stop at first breakpoint
 run

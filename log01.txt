@@ -1,0 +1,276 @@
+    First log session to test what I've got so far. GNU Debugger recorded in
+    GNU screen for the full GNU experience.
+    I'll clean up a lot of the gdb prompts and stuff for clarity.
+
+Reading symbols from nasmjf...
+Breakpoint 1 at 0x804900e: file nasmjf.asm, line 80.
+Breakpoint 1, _start () at nasmjf.asm:80
+80          cld    ; Clear the "direction flag" which means the string instructions (such
+82          mov [var_S0], esp ; save the regular stack pointer (used for data) in FORTH var S0!
+84          mov ebp, return_stack_top ; Initialise the return stack pointer
+
+    Trying a defined "function" in GDB to cut down on the typing. I always
+    have to cast the NASM labels to (int) since the debugging info has no
+    way of telling GDB what I'm storing there. "int" in this case just means
+    I've got a 4-byte (32 bit) value. GDB has a strong C heritage.
+        p - displays the VALUE of the label, which is an address
+        x - displays the memory at the address
+        p/x and x/x displays as hexadecimal
+        *(int) uses the address stored AT the memory referenced by the label
+            (again, strong C heritage in this syntax)
+    All three of these won't always be relevant, but it saves a lot of typing.
+
+(gdb) define foo
+Type commands for definition of "foo".
+End with a line saying just "end".
+>p/x (int)$arg0
+>x/x (int)$arg0
+>x/x *(int)$arg0
+>end
+
+    Initial nonsense over. now we use the main mechanism that drives the Forth
+    instructions: the NEXT macro is inlined at the end of every word and here
+    to bootstrap the action. cold_start contains the address of the "QUIT" word.
+    (quit is a silly name - it doesn't quit Forth, it "quits" TO the interpreter)
+    (side note: i'd like everything to be lowercase except assembly macros. But
+    after 'quit' and 'docol', I haven't been good about converting them. Will
+    probably do a couple rounds of cleanup at some point...)
+
+    NEXT loads the address of the next instruction and we jump to it, executing
+    the machine code there.
+
+_start () at nasmjf.asm:88
+88          mov esi, cold_start       ; give next forth word to execute
+27          lodsd     ; NEXT: Load from memory into eax, inc esi to point to next word.
+28          jmp [eax] ; Jump to whatever code we're now pointing at.
+
+    Since QUIT is defined with the DEFWORD macro, it begins with a call to
+    the 'DOCOL' word - which, in essense, sets up the rest of the Forth word
+    to be executed (QUIT, in this case) for another call to NEXT.
+
+docol () at nasmjf.asm:40
+40          lea ebp, [ebp-4]   ; "load effective address" of next stack position
+41          mov [ebp], %1      ; "push" the register value to the address at ebp
+70          add eax, 4      ; eax points to docol (me!) in word definition. Go to next.
+
+    Here I use that 'foo' function to see if that's true about the eax register.
+    Note that the add 4 instruction has NOT yet executed. GDB always shows the
+    next instruction before you tell it to step forward to that instruction!
+
+(gdb) foo $eax
+$9 = 0x804a010
+0x804a010:      0x08049000
+0x8049000 <docol>:      0x89fc6d8d
+
+    Yup! It points to DOCOL all right. Now we step and add 4 to eax:
+
+(gdb) s
+71          mov esi, eax    ; Put the next word pointer into esi
+(gdb) foo $eax
+$10 = 0x804a014
+0x804a014:      0x0804a12c
+0x804a12c:      0x08049218
+
+    Every single Forth word ends with NEXT, which executes the next word.
+    In this case, it's happening at the end of DOCOL (and DOCOL's job is
+    to get everything set up to have NEXT execute the rest of the word...)
+
+(gdb) s
+27          lodsd     ; NEXT: Load from memory into eax, inc esi to point to next word.
+28          jmp [eax] ; Jump to whatever code we're now pointing at.
+
+    Double-checking that the instructions in QUIT are what we'll be running
+    now...
+
+(gdb) foo $eax
+$12 = 0x804a12c
+0x804a12c:      0x08049218
+0x8049218 <code_R0>:    0x04c30868
+
+    Yes! The 'R0' constant is the first thing we run in QUIT! It's really wild
+    how constants in Forth are actually words with a single instruction that
+    pushes a value onto the stack! In this case, R0 is the top of the return
+    stack.
+
+    The push %5 line is from the DEFCONST macro, which, in turn, calls the
+    DEFCODE macro because consts are words. Then the NEXT macro continues to
+    the next word in QUIT...
+
+code_R0 () at nasmjf.asm:568
+568             push %5
+code_R0 () at nasmjf.asm:27
+27          lodsd     ; NEXT: Load from memory into eax, inc esi to point to next word.
+28          jmp [eax] ; Jump to whatever code we're now pointing at.
+
+    ...which happens to be RSPSTORE, which puts a value on the return stack.
+
+code_RSPSTORE () at nasmjf.asm:201
+201             pop ebp
+code_RSPSTORE () at nasmjf.asm:27
+27          lodsd     ; NEXT: Load from memory into eax, inc esi to point to next word.
+28          jmp [eax] ; Jump to whatever code we're now pointing at.
+
+    ...and then QUIT runs INTERPRET, which takes words on STDIN and then
+        ...calls _WORD to get a word from input which
+            ...calls _KEY to get a character ("key") of input
+
+code_INTERPRET () at nasmjf.asm:209
+209             call _WORD              ; Returns %ecx = length, %edi = pointer to word.
+_WORD.skip_non_words () at nasmjf.asm:310
+310             call _KEY               ; get next key, returned in %eax
+_KEY () at nasmjf.asm:351
+
+    _KEY first checks to see if it needs input (currkey has reached
+    bufftop). On first run, they're both zero, so yeah, we need more
+    input.
+
+    Aside: again, "key" isn't how we would normally describe this in
+    a modern environment - it's the next "character" (and even that's
+    becoming a thing of the past now that Unicode is pretty much standard
+    everywhere...).
+
+    Anyway, comparing currkey (ebx = 0) and bufftop (0) sets the Zero
+    Flag (ZF) because the difference between them is the same. As we
+    can see in the 'info reg' display below:
+
+351             mov ebx, [currkey]
+352             cmp ebx, [bufftop]
+353             jge .get_more_input
+(gdb) info reg
+...
+ebx            0x0                 0
+eflags         0x246               [ PF ZF IF ]
+...
+
+    We get more input by telling Linux to give us input from
+    STDIN into a fixed-size buffer:
+
+
+_KEY.get_more_input () at nasmjf.asm:361
+361             xor ebx,ebx             ; 1st param: stdin
+362             mov ecx,buffer          ; 2nd param: buffer
+363             mov [currkey],ecx
+364             mov edx,buffer_size     ; 3rd param: max length
+365             mov eax,__NR_read       ; syscall: read
+366             int 0x80                ; syscall!
+
+    Now I type "foo<enter>":
+
+foo
+
+    We check to make sure the input isn't zero-length.
+    I don't think it would ever be - the <enter> key would
+    always give us at least '\n'?
+
+367             test eax,eax            ; If %eax <= 0, then exit.
+368             jbe .eof
+369             add ecx,eax             ; buffer+%eax = bufftop
+370             mov [bufftop],ecx
+
+    We can see how long the input string is. Yup, 4 bytes is
+    right: "foo\n".
+
+(gdb) foo $eax
+$15 = 0x4
+
+    Now we're back to _KEY, having gathered some input.
+    We repeat the check...
+
+371             jmp _KEY
+_KEY () at nasmjf.asm:351
+351             mov ebx, [currkey]
+352             cmp ebx, [bufftop]
+353             jge .get_more_input
+
+    This time we have input (and bufftop is at a higher
+    address than currkey), so we continue on by grabbing
+    the current "key" (character):
+
+354             xor eax, eax
+355             mov al, [ebx]           ; get next key from input buffer
+
+    If that worked, the al register now has the first
+    character of "foo\n". Yup, there's the "f"! (p/c means
+    print as a character. We can also p/s to print a C-style
+    string.)
+
+(gdb) p/c $al
+$19 = 102 'f'
+
+    Now we set currkey to the next character and return...
+
+356             inc ebx
+357             mov [currkey], ebx        ; increment currkey
+358             ret
+
+    Back at _WORD, we check to see if we've hit a character
+    to skip. Forth is so syntactically simple, I just love it.
+
+    NOTE that the jbe instruction is "jump if compared value is
+    before (less than) or equal", so any character smaller
+    than an ASCII space (0x20) will cause us to keep seeking in the
+    .skip_non_words loop. This is a clever way to skip spaces,
+    tabs, newlines, returns, form feeds, etc. I'll improve the
+    comments for these instructions in the actual program now.
+
+_WORD.skip_non_words () at nasmjf.asm:311
+311             cmp al,'\'              ; start of a comment?
+312             je .skip_comment        ; if so, skip the comment
+313             cmp al,' '              ; space?
+314             jbe .skip_non_words     ; if so, keep looking
+
+    Nope, character looks good. So we add it to word_buffer
+    in memory. The stosb instruction implicitly copies what's
+    in the al register (the 'b' is for byte) to memory at
+    the address stored in the edi register.
+
+    Then edi is incremented so that the next time this happens,
+    the next byte will go to the next position, and so forth.
+    It turns out, this is the sort of thing we're guaranteeing
+    when we cleared the direction flag at the very beginning.
+
+317             mov edi,word_buffer     ; put addr to word return buffer in edi
+
+    Now that we've established that we're past any whitespace
+    and are gathering the actual input, we're in .collect_word.
+    I'll snip the stepping through _KEY for 'o', 'o', and '\n'
+
+_WORD.collect_word () at nasmjf.asm:319
+319             stosb                   ; add character to return buffer
+320             call _KEY               ; get next key, returned in %al
+
+    After every call to _KEY, we check to see if we're done
+    collecting the word. The ja instruction is "jump if the
+    compared value is after (greater than)," which is the
+    exact opposite of the jbe check above.
+    To put it straight: before we were looping WHILE the
+    character was whitespace, now we loop UNTIL the character
+    is whitespace.
+
+321             cmp al,' '              ; is blank?
+322             ja .collect_word        ; if not, keep looping
+
+    Now _WORD returns the length and address of the collected word.
+
+325             sub edi, word_buffer    ; hmm, the len?
+326             mov ecx, edi            ; return it
+327             mov edi, word_buffer    ; return address of the word
+328             ret
+
+    Then we return to _INTERPRET from _WORD:
+
+code_INTERPRET () at nasmjf.asm:212
+212             xor eax,eax             ; back from _WORD...zero eax
+...
+
+    Let's check the return values now:
+
+(gdb) p $ecx
+$1 = 3
+(gdb) x/3c $edi
+0x804a068 <word_buffer>:        102 'f' 111 'o' 111 'o'
+
+    Yay! There's the "foo" string that was input.
+    Even though I've got some of the _FIND word that tries to
+    match the input word, I think this has been quite enough
+    for one log. :-)
