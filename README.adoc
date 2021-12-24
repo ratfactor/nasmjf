@@ -3,10 +3,12 @@
 NOTE: This is very much an early work in progress! I'm working on it in public.
 It may never be finished! Commits will come slowly.
 
-I got lots of notes. I'll slowly add them.
+Update 2021-12-24: I've added the first logged GDB session: log01.txt. These
+will step through what I've got so far. This is to aid my own understanding
+by explaining how it all works.
 
--Dave
-
+I also wrote an article about my delightful process with this project:
+http://ratfactor.com/assembly-nights
 
 == GNU Debugger
 
