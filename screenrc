@@ -39,6 +39,6 @@ bind h hardcopy -h
 # This window attempts to assemble, link, and open GDB
 screen bash -c "cd nasmjf && ./r db"
 #
-# This window contains the source and handy reference.
-screen bash -c "cd nasmjf && vim nasmjf.asm"
+# This window contains the source and handy references.
+screen bash -c "cd nasmjf && vim nasmjf.asm jonesforth/jonesforth.S nasmdoc.txt"
 
