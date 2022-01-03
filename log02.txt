@@ -1,0 +1,174 @@
+    Tonight, we'll see how much of the FIND word works. FIND looks for
+    words in the "dictionary" of defined Forth words via linked list.
+    The interpreter uses it to look up the addresses of the word
+    implementations so it can "compile" them into new words definitions.
+
+Reading symbols from nasmjf...
+Breakpoint 1 at 0x804900e: file nasmjf.asm, line 80.
+
+    Now that I'm using GNU Screen with windows for Vim and GDB that
+    will close if either application exits, I need to reload the
+    file in GDB when I make changes (previously I was just restarting
+    GDB).
+
+(gdb) file nasmjf
+Reading symbols from nasmjf...
+
+    No need to step through everything until this point because I
+    already know it works: WORD collects a word entered through STDIN.
+
+    So I break when we enter the implementatoin for FIND and then
+    continue (run the program). The "foo" below is where nasmjf is
+    asking for input and I type "foo" and hit enter.
+
+(gdb) break _FIND
+Breakpoint 2 at 0x804920b: file nasmjf.asm, line 485.
+(gdb) c
+Continuing.
+foo
+
+    Our breakpoint triggers. Now we're in FIND. It checks if we've
+    run out of entries.
+
+Breakpoint 2, _FIND () at nasmjf.asm:485
+485         push esi                ; _FIND! Save esi, we'll use this reg for string comparison
+488         mov edx,[var_LATEST]    ; LATEST points to name header of the latest word in the diction
+ary
+_FIND.test_word () at nasmjf.asm:490
+490             test edx,edx            ; NULL pointer?  (end of the linked list)
+491         je .not_found
+
+        And then I think this is clever: instead of immediately
+        checking if the name strings match, it checks the precalculated
+        and stored length of the name first. Much more efficient.
+
+496         xor eax,eax
+497         mov al, [edx+4]           ; al = flags+length field
+498         and al,(F_HIDDEN|F_LENMASK) ; al = name length
+499         cmp cl,al        ; Length is the same?
+500         jne .prev_word          ; nope, try prev
+
+        And that's what happens here: the length doesn't match, so
+        we move to the previous word in the linked list. And it
+        starts over at .test_word...
+
+_FIND.prev_word () at nasmjf.asm:517
+517         mov edx,[edx]           ; Move back through the link field to the previous word
+518         jmp .test_word          ; loop, test prev word
+_FIND.test_word () at nasmjf.asm:490
+490             test edx,edx            ; NULL pointer?  (end of the linked list)
+
+    So I set a new breakpoint back in INTERPRET right after FIND
+    returns to see how a "not found" condition is handled.
+
+(gdb) break 215
+Breakpoint 3 at 0x8049043: file nasmjf.asm, line 215.
+(gdb) c
+Continuing.
+Breakpoint 3, code_INTERPRET () at nasmjf.asm:215
+215         test eax,eax            ; Found?
+
+    If FIND fails, INTERPRET checks if the input is a numeric literal.
+
+216         jz .try_literal
+code_INTERPRET.try_literal () at nasmjf.asm:230
+230         inc byte [interpret_is_lit] ; DID NOT MATCH a word, trying literal number
+231         call _NUMBER            ; Returns the parsed number in %eax, %ecx > 0 if error
+_NUMBER () at nasmjf.asm:407
+407         xor eax,eax
+408         xor ebx,ebx
+410         test ecx,ecx            ; trying to parse a zero-length string is an error, but returns
+0
+411         jz .return
+
+    It's neat how Forth supports numeric input in the base
+    of your choice without any extra syntax. Just set BASE.
+
+413         mov edx, [var_BASE]    ; get BASE (in dl)
+416         mov bl,[edi]            ; bl = first character in string
+417         inc edi
+418         push eax                ; push 0 on stack
+_NUMBER () at nasmjf.asm:419
+419         cmp bl,'-'              ; negative number?
+420         jnz .convert_char
+_NUMBER.convert_char () at nasmjf.asm:435
+435         sub bl,'0'              ; < '0'?
+436         jb .negate
+437         cmp bl,10        ; <= '9'?
+438         jb .compare_base
+439         sub bl,17              ; < 'A'? (17 is 'A'-'0')
+440         jb .negate
+441         add bl,10
+_NUMBER.compare_base () at nasmjf.asm:444
+444             cmp bl,dl               ; >= BASE?
+445         jge .negate
+_NUMBER.negate () at nasmjf.asm:453
+453         pop ebx
+_NUMBER.negate () at nasmjf.asm:454
+454         test ebx,ebx
+455         jz .return
+_NUMBER.return () at nasmjf.asm:459
+459         ret
+
+    Coming back from NUMBER, a value > 0 in ecx indicates an error
+    in trying to parse a numeric value.
+
+code_INTERPRET.try_literal () at nasmjf.asm:232
+232         test ecx,ecx
+233         jnz .parse_error
+
+    And sure enough, "foo" was not a valid base-ten (the default)
+    value, so we jump to the parse_error section. This should
+    print an error message.
+
+code_INTERPRET.parse_error () at nasmjf.asm:267
+267         mov ebx,2               ; 1st param: stderr
+268         mov ecx,errmsg          ; 2nd param: error message
+269         mov edx,(errmsgend - errmsg) ; 3rd param: length of string
+270         mov eax,[__NR_write]    ; write syscall
+
+    But oops! Looks like I've got an error.
+
+Program received signal SIGSEGV, Segmentation fault.
+code_INTERPRET.parse_error () at nasmjf.asm:270
+270         mov eax,[__NR_write]    ; write syscall
+
+    The next evening, I load it up again to see what's going on...
+
+Reading symbols from nasmjf...
+(gdb) break code_INTERPRET.parse_error
+Breakpoint 2 at 0x80490a6: file nasmjf.asm, line 267.
+(gdb) cont
+Continuing.
+foo
+
+Breakpoint 2, code_INTERPRET.parse_error () at nasmjf.asm:267
+267         mov ebx,2               ; 1st param: stderr
+268         mov ecx,errmsg          ; 2nd param: error message
+269         mov edx,(errmsgend - errmsg) ; 3rd param: length of string
+
+    First I try to print the value at errmsg as a string. It
+    should be the string "PARSE ERROR: ".
+
+(gdb) x/s $ecx
+0x804a315 <errmsg>:     ""
+
+    Weird. Let's look at the first 4 bytes:
+
+(gdb) x/4x $ecx
+0x804a315 <errmsg>:     0x00    0x00    0x00    0x53
+
+    Weird! Looking at stuff...
+
+(gdb) info addr errmsg
+Symbol "errmsg" is at 0x804a315 in a file compiled without debugging.
+(gdb) info addr errmsgend
+Symbol "errmsgend" is at 0x804a322 in a file compiled without debugging.
+(gdb) x/10c $ecx
+0x804a315 <errmsg>:     0 '\000'        0 '\000'        0 '\000'        83 'S'  69 'E'  32 ' '  69 '
+E'      82 'R'
+0x804a31d:      82 'R'  79 'O'
+
+    Huh, so I've basically got "   SE ERROR: ". Something is happening
+    to the first four bytes of my string. Or is this some alignment issue?
+    I'll see... To be continued.
