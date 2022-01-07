@@ -270,7 +270,7 @@ _start:
     mov eax,__NR_write      ; write syscall
     int 80h
 
-    mov [currkey],ecx       ; the error occurred just before currkey position
+    mov ecx,[currkey]       ; the error occurred just before currkey position
     mov edx,ecx
     sub edx,buffer          ; edx = currkey - buffer (length in buffer before currkey)
     cmp edx,40              ; if > 40, then print only 40 characters
@@ -281,9 +281,9 @@ _start:
     mov eax,__NR_write      ; write syscall
     int 80h
 
-    mov ecx,[errmsgnl]      ; newline
+    mov ecx,errmsgnl      ; newline
     mov edx,1               ; 1 char long
-    mov eax,[__NR_write]    ; write syscall
+    mov eax,__NR_write    ; write syscall
     int 80h
 
     NEXT
@@ -656,7 +656,7 @@ SECTION    .data
     align 4
 currkey: db 0,0,0,0  ; Current place in input buffer (next character to read).
 bufftop: db 0,0,0,0  ; Last valid data in input buffer + 1.
-interpret_is_lit: db 0        ; 1 means "reading a literal"
+interpret_is_lit: db 0,0,0,0 ; 1 means "reading a literal"
 errmsg: db "PARSE ERROR: "
 errmsgend:
-errmsgnl: db "\n"
+errmsgnl: db `\n`

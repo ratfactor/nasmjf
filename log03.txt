@@ -1,0 +1,115 @@
+    Picking up at the error discovered in the last log,
+    we need to figure out what's happening to the string
+    stored at the label 'errmsg'.
+
+    (I keep having to re-learn that GBD needs an '&' before
+    a label for it to be used as an address expression,
+    otherwise it uses the value _at_ that label. Hope I remember
+    it this time after fumbling around for a while...which is
+    not pictured here.)
+
+    The string is correct ("PARSE ERROR: ") when the program starts.
+    (Though it looks like I didn't get the newline escape right
+    in NASM because I have a literal '\n' in my string!"
+
+Reading symbols from nasmjf...
+(gdb) info addr errmsg
+Symbol "errmsg" is at 0x804a315 in a file compiled without debugging.
+(gdb) x/20c &errmsg
+0x804a315 <errmsg>:     80 'P'  65 'A'  82 'R'  83 'S'  69 'E'  32 ' '  69 'E'  82 'R'
+0x804a31d:      82 'R'  79 'O'  82 'R'  58 ':'  32 ' '  92 '\\' 110 'n' 0 '\000'
+0x804a325:      0 '\000'        0 '\000'        0 '\000'        0 '\000'
+
+    I set a watchpoint on the label and run it.
+
+(gdb) watch (int)errmsg
+Watchpoint 2: (int)errmsg
+(gdb) c
+Continuing.
+foo
+
+Watchpoint 2: (int)errmsg
+
+Old value = 1397899600
+New value = 1392508928
+code_INTERPRET () at nasmjf.asm:214
+214         call _FIND              ; Returns %eax = pointer to header or 0 if not found.
+(gdb)
+
+    Okay, so I guess that means that the line _before_ 214 must
+    be the culprit. Ah, yeah. That looks likely because here's
+    how the memory is reserved:
+
+        interpret_is_lit: db 0        ; 1 means "reading a literal"
+        errmsg: db "PARSE ERROR: "
+
+    And here's the line before 214:
+        
+        mov [interpret_is_lit], eax ; 0 means not a literal number (yet)
+
+    Yup, that sure makes sense! We reserved a byte for the
+    interpret_is_lit flag, but eax is a full word (4 bytes),
+    so the flag is getting set _and_ the remaining three
+    bytes clobber the string in errmsg. It's things like this that
+    make a person appreciate the safety features of higher
+    level languages.
+
+    Angway, the data size was "int" in the JonesForth GAS original.
+    So mine should be 'w' for word:
+
+        interpret_is_lit: dw 0        ; 1 means "reading a literal"
+
+    Let's try it:
+
+(gdb) file nasmjf
+Reading symbols from nasmjf...
+(gdb) break 271
+Note: breakpoints 3, 4 and 5 also set at pc 0x80490ba.
+Breakpoint 6 at 0x80490ba: file nasmjf.asm, line 271.
+(gdb) r
+Starting program: /home/dave/nasmjf/nasmjf
+foo
+
+Breakpoint 3, code_INTERPRET.parse_error () at nasmjf.asm:271
+271         int 80h
+PARSE ERROR: 
+
+    Yay, that's restored the PARSE ERROR string.
+    Unfortunately, it still ends in a segfault.
+    Oops! Both the errmsgnl and __NR_write labels
+    should be the addresses, not the values at the
+    addresses at lines 284 and 286.
+
+273         mov [currkey],ecx       ; the error occurred just before currkey position
+274         mov edx,ecx
+275         sub edx,buffer          ; edx = currkey - buffer (length in buffer before currkey)
+276         cmp edx,40              ; if > 40, then print only 40 characters
+277         jle .print_error
+code_INTERPRET.print_error () at nasmjf.asm:280
+280         sub ecx,edx             ; ecx = start of area to print, edx = length
+281         mov eax,__NR_write      ; write syscall
+282         int 80h
+284         mov ecx,[errmsgnl]      ; newline
+285         mov edx,1               ; 1 char long
+286         mov eax,[__NR_write]    ; write syscall
+
+Program received signal SIGSEGV, Segmentation fault.
+
+    Okay, easy fix. I also noticed I stll had the operands
+    transposed on line 273. And I swapped out the double
+    quotes around the errmsgnl string literal to backquotes
+    as required by NASM for backslash escape support.
+
+    Let's see how it goes now:
+
+Continuing.
+foo
+PARSE ERROR: foo
+
+[Inferior 1 (process 2582) exited normally]
+
+    Yay!
+
+
+
+
