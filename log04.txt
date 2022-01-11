@@ -1,0 +1,184 @@
+    Now having seen a correct response when nothing matches
+    idiotic input string "foo", let's take a look at input
+    that does match. I'll start with a defined word. How about
+    "FIND", since we know that exists.
+
+    I'm not feeling particularly clever tonight. So I'm just
+    going to step through everthing and cut down the log to
+    the good stuff.
+
+    The "FIND" below is me typing "FIND" when the interpreter
+    requests input.
+
+(gdb) run
+code_INTERPRET () at nasmjf.asm:209
+_WORD.skip_non_words () at nasmjf.asm:308
+_KEY () at nasmjf.asm:349
+_KEY.get_more_input () at nasmjf.asm:359
+    ...
+364         int 0x80                ; syscall!
+(gdb)
+FIND
+
+    Now let's see if FIND can find itself. :-)
+
+code_INTERPRET () at nasmjf.asm:212
+_FIND () at nasmjf.asm:485
+485         push esi                ; _FIND! Save esi, we'll use this reg for string comparison
+488         mov edx,[var_LATEST]    ; LATEST points to name header of the latest word in the diction
+
+    As before, we alternate between .test_word and .prev_word
+    for every word in the dictionary, starting with the latest
+    and using the stored pointers as a linked list until we
+    find a match or the beginning of the list.
+
+_FIND.test_word () at nasmjf.asm:490
+_FIND.prev_word () at nasmjf.asm:517
+    ...
+490             test edx,edx            ; NULL pointer?  (end of the linked list)
+491         je .not_found
+496         xor eax,eax
+497         mov al, [edx+4]           ; al = flags+length field
+498         and al,(F_HIDDEN|F_LENMASK) ; al = name length
+499         cmp cl,al        ; Length is the same?
+500         jne .prev_word          ; nope, try prev
+
+    Length of the word matched, now we'll check the actual
+    name string.
+
+    The key to understanding the comparison is knowing that
+    cmpsb implicitly uses the eci and edi registers as pointers
+    to the data to compare. The repe mnemonic stands for
+    "repeat while equal" and is a modifier for the cmpsb
+    instruction.
+
+    I've always been in the RISC camp (versus CISC), because
+    I love systems that compose from "simple" pieces. But I
+    have to admit that these "string" operations in x86
+    do make a lot of sense. After dwelling on this a bit
+    last night, I think I had a dream where I desiged some
+    new hardware (like Ben Eater's 8-bit breadboard CPU or 
+    was it an FPGA?) and I was coming up with a new
+    instruction set architecture (ISA) that was strictly
+    "complex" instructions like these string operations,
+    but I think it was also inspired by the array languages
+    like APL and J.  Anyway, I've abandoned my simplistic
+    noob stance on RISC: there are lots of different kinds
+    of simple and RISC trades one kind for another.
+
+    Let's see a repe cmpsb in action...
+
+503         push ecx                ; Save the length
+504         push edi                ; Save the address (repe cmpsb will move this pointer)
+_FIND.test_word () at nasmjf.asm:505
+505         lea esi,[edx+5]         ; Dictionary string we are checking against.
+506         repe cmpsb              ; Compare the strings.
+507         pop edi
+_FIND.test_word () at nasmjf.asm:508
+508         pop ecx
+_FIND.test_word () at nasmjf.asm:509
+509         jne .prev_word          ; nope, try prev
+512         pop esi
+_FIND.test_word () at nasmjf.asm:513
+513         mov eax,edx
+514         ret                     ; FOUND!
+
+    Yay! We've got a match on the word.
+
+    Now back in INTERPRET, we have to do another comparison to
+    check the return value. Since we did, we can now act upon
+    the matched word.
+
+code_INTERPRET () at nasmjf.asm:215
+215         test eax,eax            ; Found?
+216         jz .try_literal
+219         mov edi,eax             ; edi = dictionary entry YES WE HAVE MATCHED A WORD!!!
+220         mov al,[edi+4]          ; Get name+flags.
+221         push ax                 ; Just save it for now.
+code_INTERPRET () at nasmjf.asm:222
+222         call _TCFA              ; Convert dictionary entry (in %edi) to codeword pointer.
+
+    So TCFA is the internal label for the Forth word
+    ">CFA" which I read as "To CFA" and Jones guesses
+    probably means "Code Field Address". It's job is
+    to take the given pointer to a word and return a
+    pointer to the word's code. Neat.
+
+_TCFA () at nasmjf.asm:386
+386         xor eax,eax
+387         add edi,4               ; Skip link pointer.
+388         mov al,[edi]            ; Load flags+len into %al.
+389         inc edi                 ; Skip flags+len byte.
+390         and al,F_LENMASK        ; Just the length, not the flags.
+391         add edi,eax             ; Skip the name.
+392         add edi,3               ; The codeword is 4-byte aligned.
+393         and edi,-3
+394         ret
+
+    Then we return to INTERPRET again now that the edi
+    register contains the address of the matched word's
+    code (in this case, the code for FIND).
+
+    We can be in immediate mode and/or executing state.
+
+    In this case, we are NOT in immediate mode.
+
+code_INTERPRET () at nasmjf.asm:223
+223         pop ax
+code_INTERPRET () at nasmjf.asm:224
+224         and al,F_IMMED          ; is IMMED flag set?
+225         mov eax,edi
+226         jnz .execute            ; If IMMED, jump straight to executing.
+
+    We ARE in executing state.
+
+227         jmp .check_state
+code_INTERPRET.check_state () at nasmjf.asm:238
+238         mov edx,[var_STATE]
+239         test edx,edx
+240         jz .execute             ; Jump if executing.
+code_INTERPRET.execute () at nasmjf.asm:253
+253         mov ecx,[interpret_is_lit] ; Literal?
+254         test ecx,ecx               ; Literal?
+255         jnz .do_literal
+
+    To execute the matched word, we simply jump
+    to the code address...
+
+259         jmp [eax]
+
+    ...and now we're executing FIND, just as expected.
+
+code_FIND () at nasmjf.asm:478
+478         pop ecx                 ; length of word
+479         pop edi                 ; buffer with word
+480         call _FIND
+_FIND () at nasmjf.asm:485
+485         push esi                ; _FIND! Save esi, we'll use this reg for string comparison
+    ...
+
+    I'm not even sure what FIND is looking for now
+    since I didn't bother examining any memory during
+    the rest of the run. I was just happy to see the
+    interpreter finding and executing the requested
+    word!
+
+    Eventually it got through the linked list and didn't
+    match anything.
+
+_FIND.test_word () at nasmjf.asm:490
+490             test edx,edx            ; NULL pointer?  (end of the linked list)
+491         je .not_found
+_FIND.not_found () at nasmjf.asm:521
+521         pop esi
+_FIND.not_found () at nasmjf.asm:522
+
+    And then Forth exited normally having run out
+    of code (the interpreter does not yet loop, so
+    it always exits after the first bit of input.
+
+190             mov eax, 1    ; exit syscall
+191         int 80h       ; call kernel
+[Inferior 1 (process 2531) exited normally]
+
+    Next will be handling numeric literals.

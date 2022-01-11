@@ -169,6 +169,6 @@ Symbol "errmsgend" is at 0x804a322 in a file compiled without debugging.
 E'      82 'R'
 0x804a31d:      82 'R'  79 'O'
 
-    Huh, so I've basically got "---SE ERROR: " (where '-' is NUL. Something
+    Huh, so I've basically got "---SE ERROR: " (where '-' is NUL). Something
     is happening to the first three bytes of my string. Or is this some
     alignment issue? I'll see... To be continued.
