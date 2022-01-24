@@ -1,0 +1,153 @@
+    Third time's the charm. First time, I might have...
+    ...fallen asleep while stepping through the program.
+    The second time, I got to the end to discover that
+    I'd either missed a line of instruction or accidentally
+    deleted it. Either way, I was missing the crucial
+    instruction to add the parsed digit to the total
+    in the NUMBER word.
+
+    And in between each of those attempts were sleepy
+    nights when I just booted up, read some source,
+    poked around in the debugger, and then logged off
+    again.
+
+    These things ebb and flow.
+
+    But if you just keep coming back to them day after
+    day, they DO get completed. I'm increasingly able
+    to make use of this obvious truth.
+
+    Anyway, parsing literal numbers in the interpreter.
+
+    Note the '42' below is me typing at the Forth
+    prompt (via STDIN):
+
+Reading symbols from nasmjf...
+(gdb) break _NUMBER
+Breakpoint 3 at 0x80491ac: file nasmjf.asm, line 407.
+(gdb) c
+Continuing.
+42
+
+Breakpoint 3, _NUMBER () at nasmjf.asm:407
+407         xor eax,eax
+408         xor ebx,ebx
+410         test ecx,ecx            ; trying to parse a zero-length string is an error, but returns
+411         jz .return
+
+    GDB prints the _next_ line of source to be executed
+    after a step. So below, I'm checking the BASE (radix)
+    for number parsing right after line 413 executes.
+
+    As we can see, base 10 is the default.
+
+413         mov edx, [var_BASE]    ; get BASE (in dl)
+416         mov bl,[edi]            ; bl = first character in string
+(gdb) p $dl
+$1 = 10
+417         inc edi
+
+    And now let's examine the first character of input from
+    the "42" I typed. Yup, it's a '4'.
+
+(gdb) p/c $bl
+$2 = 52 '4'
+
+    Now we convert the ASCII char '4' to the actual
+    value 4 using the base.
+
+418         push eax                ; push 0 on stack
+_NUMBER () at nasmjf.asm:419
+419         cmp bl,'-'              ; negative number?
+420         jnz .convert_char
+_NUMBER.convert_char () at nasmjf.asm:435
+435         sub bl,'0'              ; < '0'?
+436         jb .negate
+437         cmp bl,10        ; <= '9'?
+438         jb .compare_base
+_NUMBER.compare_base () at nasmjf.asm:444
+444             cmp bl,dl               ; >= BASE?
+445         jge .negate
+
+    This line is the most crucial of all. It's where we
+    add the current digit's value to the total. This is
+    the line I was missing. :-O
+
+448         add eax,ebx
+(gdb) p $ebx
+$3 = 4
+449         dec ecx
+450         jnz 1b
+
+    Each new digit means the previous sum is another place
+    value higher. So we mutiply our accumulated value by
+    the base.
+
+_NUMBER.next_char () at nasmjf.asm:430
+430         imul eax,edx           ; eax *= BASE
+431         mov bl,[edi]           ; bl = next character in string
+(gdb) p $eax
+$4 = 40
+
+    Then the whole thing repeats for the '2' character.
+
+432         inc edi
+(gdb) p/c $bl
+$5 = 50 '2'
+_NUMBER.convert_char () at nasmjf.asm:435
+435         sub bl,'0'              ; < '0'?
+436         jb .negate
+437         cmp bl,10        ; <= '9'?
+438         jb .compare_base
+_NUMBER.compare_base () at nasmjf.asm:444
+444             cmp bl,dl               ; >= BASE?
+445         jge .negate
+448         add eax,ebx
+449         dec ecx
+
+    Do we have the correct total? Yes! 42 is correct.
+    NUMBER returns with the value in eax.
+
+(gdb) p $eax
+$6 = 42
+(gdb) s
+450         jnz 1b
+_NUMBER.negate () at nasmjf.asm:453
+453         pop ebx
+_NUMBER.negate () at nasmjf.asm:454
+454         test ebx,ebx
+455         jz .return
+_NUMBER.return () at nasmjf.asm:459
+459         ret
+
+    Back in INTERPRET now, we check to see if NUMBER was
+    successful. And it was (ecx is zero).
+
+    We are currently in "immediate mode" (STATE is zero), which
+    means that the word is executed as soon as it's entered.
+    However, you can see that the address of the LIT word is being
+    saved in eax so that if we were in "compiling mode", the
+    interpreter would have it available.
+
+code_INTERPRET.try_literal () at nasmjf.asm:232
+232         test ecx,ecx
+233         jnz .parse_error
+234         mov ebx,eax
+235         mov eax,LIT             ; The word is now LIT
+code_INTERPRET.check_state () at nasmjf.asm:238
+238         mov edx,[var_STATE]
+239         test edx,edx
+240         jz .execute             ; Jump if executing.
+code_INTERPRET.execute () at nasmjf.asm:253
+253         mov ecx,[interpret_is_lit] ; Literal?
+254         test ecx,ecx               ; Literal?
+255         jnz .do_literal
+
+    And how do we immediately "execute" the provided
+    numerical literal value in Forth? By pushing it on
+    the stack!
+
+code_INTERPRET.do_literal () at nasmjf.asm:262
+262         push ebx
+
+    So that works. :-)
