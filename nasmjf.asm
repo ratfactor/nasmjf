@@ -373,6 +373,7 @@ _KEY:
     mov eax,__NR_exit       ; syscall: exit
     int 0x80
 
+
         ; ***** TCFA *****
         ; Turn a dictionary pointer into a codeword pointer.
         ; This is where we use the stored length of the word name
@@ -402,7 +403,6 @@ _TCFA:
     push eax                ; parsed number
     push ecx                ; number of unparsed characters (0 = no error)
     NEXT
-
 _NUMBER:
     xor eax,eax
     xor ebx,ebx
@@ -445,9 +445,9 @@ _NUMBER:
     jge .negate
 
     ; add it to eax and loop.
-
+    add eax,ebx
     dec ecx
-    jnz 1b
+    jnz .next_char
 
 .negate:       ; (4) Negate the result if first character was '-' (saved on the stack).
     pop ebx
