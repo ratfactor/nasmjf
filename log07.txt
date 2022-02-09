@@ -1,0 +1,212 @@
+    So the error in TCFA (which gets the code address for
+    a dictionary entry) has been fixed.
+
+    Now let's see why the COLON definition is crashing with
+    a segfault.
+
+    I type my usual test word ": FIVE 5 ;".
+
+
+80          cld    ; Clear the "direction flag" which means the string
+(gdb) c
+Continuing.
+: FIVE 5 ;
+
+    (We'll skip everything that we now know works from log06.txt.)
+
+    First, INTERPRET checks STATE to see if we're executing
+    or compiling (we're executing).
+
+code_INTERPRET.check_state () at nasmjf.asm:239
+239         mov edx,[var_STATE]
+240         test edx,edx
+241         jz .execute             ; Jump if executing.
+
+    Then we check to see if we are executing a literal value
+    or a word (it's a word ":" (COLON)).
+
+code_INTERPRET.execute () at nasmjf.asm:254
+254         mov ecx,[interpret_is_lit] ; Literal?
+255         test ecx,ecx               ; Literal?
+256         jnz .do_literal
+
+    Now we jump to the code pointed to at the beginning
+    of COLON, which is DOCOL. (Increasingly, as we define
+    more words with other words rather than pure machine
+    language, they'll start with DOCOL.)
+
+    Here I double-check that we're about t jump to the
+    first pointe in COLON and that it points to DOCOL.
+
+260         jmp [eax]
+(gdb) info symbol $eax
+COLON in section .data of /home/dave/nasmjf/nasmjf
+(gdb) info symbol *$eax
+DOCOL in section .text of /home/dave/nasmjf/nasmjf
+
+
+    Here's DOCOL. I may have stepped through this before
+    but it's worth looking at again since it's crucial
+    to understanding this type of Forth implementation.
+
+    Given the glacial pace at which I'm porting this, I need
+    lots of reminders!
+
+    This cheatsheet is currently in a comment at the top
+    of my jonesforth.asm:
+
+       esi - next forth word address to execute
+       ebp - return stack for forth word addresses
+
+    In the source, PUSHRSP and POPRSP usually handle the
+    ebp register, which we're using for the return stack
+    pointer (RSP).
+
+    DOCOL's first two lines are both from the PUSHRSP macro
+    (you can see that they have lower line numbers).
+
+    That handles ebp.
+
+    Then DOCOL advances esi to the next word pointer
+    (in COLON after DOCOL itself).
+
+DOCOL () at nasmjf.asm:40
+40          lea ebp, [ebp-4]   ; "load effective address" of next stack position
+41          mov [ebp], %1      ; "push" the register value to the address at ebp
+70          add eax, 4      ; eax points to DOCOL (me!) in word definition. Go to next.
+71          mov esi, eax    ; Put the next word pointer into esi
+
+    Let's see if that's right. Here's the entire definition
+    of COLON. We don't see DOCOL here because it's inserted
+    by the DEFWORD macro, but it comes right before FWORD.
+    (By the way, FWORD is just WORD, but I can't have a
+    symbol called "WORD" in NASM because it's a reserved
+    keyword.)
+
+        DEFWORD ":",1,,COLON
+        dd FWORD
+        dd CREATE
+        dd LIT, DOCOL, COMMA
+        dd LATEST, FETCH, HIDDEN
+        dd RBRAC
+        dd EXIT
+
+    I think it's super-cool that Forth exposes all of the
+    primitives needed to create (or replace!) the COLON
+    compiler so can you can use them in the interpreter
+    yourself. Truly a no-holds-barred language.
+
+    At any rate, the pointer in esi should be the next one
+    in COLON and it should point to WORD (well, FWORD).
+
+(gdb) info symbol $esi
+COLON + 4 in section .data of /home/dave/nasmjf/nasmjf
+(gdb) info symbol *$esi
+FWORD in section .data of /home/dave/nasmjf/nasmjf
+
+    Great! And then the NEXT macro puts the address pointed
+    to by esi into eax, increments esi to next word pointer,
+    and jumps to the address *pointed to* by the address now
+    in eax. HAVE YOU GOT THAT???
+
+    This is made even more confusing by the lodsd instruction.
+    The mnemonic stands for "load string doubleword". The idea
+    is that you can use it to load a "string" of values
+    by repeatedly calling lodsd (or loadsb for byte, etc.).
+    What it actually does is load 4 bytes from the address at
+    esi into eax and then increments esi by 4.
+
+    (By the way, I've come to _loathe_ the terms "word", "double"
+    "long", etc. I'm okay with "byte" because it's come to
+    mean "8 bits" pretty universally in the year 2022. If
+    I were king, we would just use the byte count for these sizes
+    like:
+        b  = 1 byte  = 8 bits
+        b2 = 2 bytes = 16 bits
+        b4 = 4 bytes = 32 bits
+        b8 = 8 bytes = 64 bits
+    and "lodsd" would become "lodsb4". Well, lods* would probably
+    have a better mnemonic. But you get the idea. Anyway, harping
+    on x86 is, like, a full-time job and it ain't gonna get this
+    Forth port done.)
+
+
+
+27          lodsd     ; NEXT: Load from memory into eax, inc esi to point to next word.
+
+    And did it work?
+
+28          jmp [eax] ; Jump to whatever code we're now pointing at.
+(gdb) info symbol *$eax
+code_FWORD in section .text of /home/dave/nasmjf/nasmjf
+
+    Yup! It's jumping to WORD.
+
+    (As another aside, it occurs to me that "WORD" is
+    a really confusing name for this Forth word - it just
+    tokenizes a space-delimited string from input. Otherwise,
+    it doesn't have anything to do with Forth's concept
+    of "words" as executable code stored in a "dictionary".)
+
+code_FWORD () at nasmjf.asm:302
+302         call _WORD
+
+    Cool, so now I'll skip stepping through WORD/KEY as
+    we gather the string "FIVE" (the name of the word I'm
+    trying to define) from input.
+
+_WORD.skip_non_words () at nasmjf.asm:309
+309         call _KEY               ; get next key, returned in %eax
+            ...
+325         mov ecx, edi            ; return it
+
+    I have to admit, I don't understand why I can't access
+    the memory at word_buffer.
+
+(gdb) x/s (int)word_buffer
+0x45564946:     <error: Cannot access memory at address 0x45564946>
+
+    Wait a dang second, 45 56 49 46 isn't an address, it's
+    the actual characters 'E' 'V' 'I' 'F' (or "FIVE" stored
+    little-endian)!
+
+    Grrrr... another gripe - the way GDB treats symbols
+    just confuses me. I like how NASM does it: foo is
+    always an address, [foo] is always the value AT that
+    address. It's very consistent.
+
+    Next night: gosh darn it! I remembered. You gotta put
+    a '&' in front of "variables" to get the address...and
+    that includes when you're trying to use the 'examine'
+    ('x') command to format and view memory using the variable
+    name.
+
+(gdb) p &word_buffer
+$1 = (<data variable, no debug info> *) 0x804a068 <word_buffer>
+(gdb) x/4c &word_buffer
+0x804a068 <word_buffer>:        70 'F'  73 'I'  86 'V'  69 'E'
+
+    At any rate, looks good. WORD returns "FIVE".
+
+code_FWORD () at nasmjf.asm:303
+303         push edi                ; push base address
+304         push ecx                ; push length
+
+    And with any luck, now we'll be headed to the next word in
+    the COLON definition, CREATE.
+
+code_FWORD () at nasmjf.asm:27
+27          lodsd     ; NEXT: Load from memory into eax, inc esi to point to next word.
+28          jmp [eax] ; Jump to whatever code we're now pointing at.
+(gdb) info symbol $eax
+CREATE in section .data of /home/dave/nasmjf/nasmjf
+(gdb) info symbol *$eax
+code_CREATE in section .text of /home/dave/nasmjf/nasmjf
+
+    Yay!
+    
+    Now CREATE makes the header (dictionary link, name, flags)
+    portion of the word we're compiling.
+
+    In the next log, we'll see if CREATE works and then try to
+    track down which word is causing a segfault when COLON runs.

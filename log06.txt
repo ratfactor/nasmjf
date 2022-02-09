@@ -1,0 +1,264 @@
+    Exciting stuff! There are now enough "code words" defined
+    in machine code to create the COLON (":") word as a pure
+    Forth definition of other words.
+
+    Let's see if it works.
+
+Reading symbols from nasmjf...
+
+    Wait, where is code_COLON?
+
+(gdb) break code_C
+code_CHAR    code_COMMA   code_CREATE
+
+    Oh, ha ha. Right. No such thing. COLON is defined entirely
+    in a data segment. There is no machine code portion.
+
+    Well, let's break right before it gets called, then.
+    INTERPRET.execute is the point at which we've matcched
+    the user input with a word in the dictionary and we
+    hand control over to it via the pointer right after
+    the "header" portion of the word definition.
+
+    I'll type a new definition using ':' to make a word
+    called "five" that pushes 5 on the stack:
+
+(gdb) break code_INTERPRET.execute
+Breakpoint 3 at 0x8049096: file nasmjf.asm, line 254.
+(gdb) c
+Continuing.
+: five 5 ;
+
+Breakpoint 3, code_INTERPRET.execute () at nasmjf.asm:254
+254         mov ecx,[interpret_is_lit] ; Literal?
+255         test ecx,ecx               ; Literal?
+256         jnz .do_literal
+260         jmp [eax]
+
+    So we should be about to jump to DOCOL, which should be
+    the machine code COLON points to in the "interpreter"
+    pointer at the beginning of the word definition. (This
+    is confusing because the "interpreter" of a word is
+    not the same as the interpreter INTERPRET that just
+    took our typed input...
+
+    Anyway, let's take a look at eax. Looks like it points
+    to COLON + 1. Wait! Shouldn't it just be COLON?
+
+(gdb) p /x $eax
+$1 = 0x804a11d
+(gdb) info symbol $eax
+COLON + 1 in section .data of /home/dave/nasmjf/nasmjf
+
+    And what's at that address (* treats the value as
+    a pointer to memory)? It's...uh, not quite the
+    value I was expecting (an address in the 0x804000
+    range).
+
+    Yeah, the pointer there is no good.
+
+(gdb) p /x *$eax
+$2 = 0x64080490
+(gdb) info symbol *$eax
+No symbol matches *$eax.
+
+    Where is DOCOL?
+
+(gdb) info address DOCOL
+Symbol "DOCOL" is at 0x8049000 in a file compiled without debugging.
+
+    The next night: Oh, now I see it! The COLON + 1 was,
+    indeed, the problem.  Check it out, the pointer in eax
+    is shifted 1 byte off from the correct DOCOL address:
+
+           0x8049000   <--- DOCOL
+        0x64080490     <--- eax
+
+    And sure enough, letting it run causes a segfault:
+
+Program received signal SIGSEGV, Segmentation fault.
+0x64080490 in ?? ()
+
+    So where is it going wrong?
+
+    Register al contains just 00000001 (/t means binary
+    formatting, of COURSE).
+
+(gdb) p/t $al
+$1 = 1
+392         and al,F_LENMASK        ; Just the length, not the flags.
+
+    We can't examine F_LENMASK in GDB because it was a
+    NASM constant.
+
+    But we can see what it was with a disassembly: 0x1f
+
+(gdb) disass
+Dump of assembler code for function _TCFA:
+   0x0804918d <+0>:     xor    eax,eax
+   0x0804918f <+2>:     add    edi,0x4
+   0x08049192 <+5>:     mov    al,BYTE PTR [edi]
+   0x08049194 <+7>:     inc    edi
+=> 0x08049195 <+8>:     and    al,0x1f
+   0x08049197 <+10>:    add    edi,eax
+   0x08049199 <+12>:    add    edi,0x3
+   0x0804919c <+15>:    and    edi,0xfffffffd
+   0x0804919f <+18>:    ret
+End of assembler dump.
+
+    Which is 00011111 in binary - so it masks off all
+    but the last five bits from al. This currently
+    has no effect (no flags were set on COLON) and
+    the name ':' is, indeed, one characer long.
+
+(gdb) p/t 0x1f
+$2 = 11111
+
+    So after this, edi should contain the address of
+    the pointer stored after the name.
+
+393         add edi,eax             ; Skip the name.
+(gdb) p/x $eax
+$3 = 0x1
+(gdb) p/x $edi
+$4 = 0x804a119
+
+    Ah, but first we have to make sure we're pointed
+    at the pointer stored after the name AND aligned
+    to the next 4 bytes.
+
+    Apparently, adding 3 and masking with -3 does
+    the trick. How does this work?
+
+    So aligning on 4 bytes means that the last two
+    bits of the address have to be 0. And to get to
+    the next four bytes, we would always need to
+    advance to the NEXT 4 byte-aligned addr, so we
+    can't just mask off the last two digits.
+
+        All three of these addreses need to advance
+        to the same next 4 byte-aligned address:
+
+            00001001 --> 00001100
+            00001010 --> 00001100
+            00001011 --> 00001100
+
+        Adding 3 (11) to each of these would produce:
+
+            00001100
+            00001101
+            00001110
+
+        respectively. So that advances the 4's place
+        bit as needed, now we just need to mask off
+        the last two digits and we're set.
+
+        (Also, adding 3 (11) to an already-aligned
+        address will do no harm since it wouldn't
+        advance the 4's place bit: 1000 + 11 = 1011)
+        
+    So what I don't understand is why we're masking with -3,
+    which is this value when stored with two's complement:
+    
+        0x0804919c <+15>:    and    edi,0xfffffffd
+
+    which is ...1111111101 because you invert and add one to
+    make a number negative.
+
+    This seems like a mistake (and exactly the off-by-one
+    mistake we've got here).
+
+    To mask off the last two digits, don't we want
+    -4 instead?
+
+        00000100 2
+        11111011 invert digits
+        11111100 add one
+
+    Anyway, let's examine the actual values...
+
+394         add edi,3               ; The codeword is 4-byte aligned.
+(gdb) p/x $edi
+$5 = 0x804a11a
+(gdb) p/t $edi
+$7 = 1000000001001010000100011101
+395         and edi,-3
+(gdb) p/x $edi
+$8 = 0x804a11d
+(gdb) p/t $edi
+$9 = 1000000001001010000100011101
+(gdb) info symbol $edi
+COLON + 1 in section .data of /home/dave/nasmjf/nasmjf
+
+    Now the off-by-one makes plenty of sense. I'll try a -4
+    now, but why...
+
+    Argh! I just looked at the jonesforth source again.
+    It's not -3, it's ~3! Which is unary NOT 3 (11111100).
+    Bah! Of course it is. Here's the original GAS line:
+
+	andl $~3,%edi
+
+    NASM uses ~ for unary not as well. I bet it'll work now. 
+
+(gdb) break _TCFA
+Breakpoint 2 at 0x804918d: file nasmjf.asm, line 388.
+(gdb) c
+Continuing.
+: FIVE 5 ;
+
+Breakpoint 2, _TCFA () at nasmjf.asm:388
+388         xor eax,eax
+389         add edi,4               ; Skip link pointer.
+390         mov al,[edi]            ; Load flags+len into %al.
+391         inc edi                 ; Skip flags+len byte.
+392         and al,F_LENMASK        ; Just the length, not the flags.
+393         add edi,eax             ; Skip the name.
+
+    Let's check this each step of the way. edi points to
+    the name (header) portion of COLON. It ends in a 2 (10)
+    so we'll need to advance it to the next 4-byte alignment
+    where the COLON code begins.
+
+(gdb) info symbol $edi
+name_COLON + 6 in section .data of /home/dave/nasmjf/nasmjf
+(gdb) p/t $edi
+$2 = 1000000001001010000100011010
+
+    Now the 4's place is incremented. But the address
+    ends in 1.
+
+394         add edi,3               ; The codeword is 4-byte aligned:
+(gdb) p/t $edi
+$3 = 1000000001001010000100011101
+
+    Finally, we mask with NOT 3. Now edi is aligned and
+    points to the code definition!
+
+395         and edi,~3              ;   Add ...00000011 and mask ...11111100.
+396         ret                     ;   For more, see log06.txt in this repo.
+(gdb) p/t $edi
+$4 = 1000000001001010000100011100
+(gdb) info symbol $edi
+COLON in section .data of /home/dave/nasmjf/nasmjf
+
+    We'll skip some stuff and take a look at what
+    INTERPRET.execute now does with these results.
+
+260         jmp [eax]
+(gdb) info symbol $eax
+COLON in section .data of /home/dave/nasmjf/nasmjf
+(gdb) info symbol *$eax
+DOCOL in section .text of /home/dave/nasmjf/nasmjf
+
+    Excellent! The address at our word's definition
+    contains another address. This one is for the
+    DOCOL word, which starts the chain reaction that
+    executes the rest of the words in the definition
+    of COLON.
+
+    So it turned out that the alignment bug had just
+    been waiting to crop up.
+
+    I still get a segfault after this point, so the
+    debugging will continue in log07.txt.

@@ -1,11 +1,12 @@
-= NASM port of JONESFORTH
+= NASM port of jonesFORTH
 
 NOTE: This is very much an early work in progress! I'm working on it in public.
-It may never be finished! Commits will come slowly.
+The progress has been slow but steady. The program likely segfaults at any given
+commit.
 
-Update 2021-12-24: I've added the first logged GDB session: log01.txt. These
-will step through what I've got so far. This is to aid my own understanding
-by explaining how it all works.
+Check out the log text files. They're my rambling learning-in-public and
+thinking "out loud" way of describing what I'm up to. The latest log will probably
+give an idea of what I'm currently doing or what I've most recently completed.
 
 I also wrote an article about my delightful process with this project:
 http://ratfactor.com/assembly-nights
@@ -95,3 +96,15 @@ let mapleader = ","
 " run my 'r' script for nasmjf.asm
 nnoremap <leader>r :!r<cr>
 ----
+
+== PUBLIC DOMAIN
+
+Because Richard Jones released his work as public domain, it's only right
+that I should release my port also as public domain. So here's the license:
+
+I, the copyright holder of this work, hereby release it into the public domain.
+This applies worldwide.
+
+In case this is not legally possible, I grant any entity the right to use this
+work for any purpose, without any conditions, unless such conditions are
+required by law.

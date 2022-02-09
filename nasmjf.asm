@@ -1,4 +1,4 @@
-; Dave's NASM port of JONESFORTH
+; Dave's NASM port of jonesFORTH
 ; 
 ; register use:
 ;       esi - next forth word address to execute
@@ -55,7 +55,7 @@ buffer:       resb buffer_size
 
 SECTION .data
 
-cold_start: dd quit  ; we need a way to indirectly address the first word
+cold_start: dd QUIT  ; we need a way to indirectly address the first word
 
 SECTION .text
 
@@ -65,9 +65,9 @@ SECTION .text
 ; This is the "interpreter" word - it is used at the beginning of proper Forth
 ; words that are composed of other words (not machine code). It gets the esi
 ; register pointed at the first word address and starts the NEXT macro.
-docol:
-    PUSHRSP esi     ; docol: push esi on to the RSP return stack
-    add eax, 4      ; eax points to docol (me!) in word definition. Go to next.
+DOCOL:
+    PUSHRSP esi     ; DOCOL: push esi on to the RSP return stack
+    add eax, 4      ; eax points to DOCOL (me!) in word definition. Go to next.
     mov esi, eax    ; Put the next word pointer into esi
     NEXT
 
@@ -105,7 +105,7 @@ _start:
 ;   2. "data words" are defined as a series of pointers to words
 ; Both start with a pointer to a code word's instructions which can
 ; be executed. The differene is that a code word points to its own
-; instructions and a data word points to a word called "docol", ("do
+; instructions and a data word points to a word called "DOCOL", ("do
 ; the colon word") which loads and runs the individual words.
 
 ; in memory, the words look like this for examples "foo" and "bar":
@@ -116,7 +116,7 @@ _start:
 ;       (namelen + flags)         (namelen + flags)
 ;       "foo"                     "bar"
 ;   foo:                      bar:
-;       (ptr to docol)            (ptr to code_bar)
+;       (ptr to DOCOL)            (ptr to code_bar)
 ;       (ptr to a word)       code_bar:
 ;       (ptr to a word)           (machine code)
 ;       (ptr to a word)           (machine code)
@@ -144,7 +144,7 @@ _start:
 
          global %4 ; <label>
          %4:
-             dd docol ; addr of the "interpreter" that will handle
+             dd DOCOL ; addr of the "interpreter" that will handle
                      ; the list of forth word addrs that will follow
 %endmacro
 
@@ -175,16 +175,17 @@ _start:
             ; code for the Forth word...
 %endmacro
 
-        ; quit is a bit of a silly name - it's more of a reset
-    DEFWORD "quit",4,0,quit
-        dd R0           ; push R0 (addr of top of return stack)
-        dd RSPSTORE     ; store R0 in return stack pointer (ebp)
+    ; the name "QUIT" makes sense from a certain point of view: it
+    ; returns to the interpreter
+    DEFWORD "QUIT",4,0,QUIT
+    dd R0           ; push R0 (addr of top of return stack)
+    dd RSPSTORE     ; store R0 in return stack pointer (ebp)
     dd INTERPRET    ; interpret the next word
     ;dd BRANCH,-8    ; and loop (indefinitely)
 
-        dd gtfo
+    dd gtfo
 
-        ; just try to quit gracefully:
+        ; just try to exit gracefully:
     DEFCODE "gtfo",4,0,gtfo
     mov ebx, 0    ; exit code
         mov eax, 1    ; exit syscall
@@ -390,9 +391,9 @@ _TCFA:
     inc edi                 ; Skip flags+len byte.
     and al,F_LENMASK        ; Just the length, not the flags.
     add edi,eax             ; Skip the name.
-    add edi,3               ; The codeword is 4-byte aligned.
-    and edi,-3
-    ret
+    add edi,3               ; The codeword is 4-byte aligned:
+    and edi,~3              ;   Add ...00000011 and mask ...11111100.
+    ret                     ;   For more, see log06.txt in this repo.
 
         ; ***** NUMBER *****
         ; parse numeric literal from input using BASE as radix
@@ -460,13 +461,12 @@ _NUMBER:
 
 
 
-        ; ***** FIND *****
-        ; TODO: come back and write my own explanation. orig:
-    ;   "esi points to the next command, but in this case it points to the next
-    ; literal 32 bit integer.  Get that literal into eax and increment esi.
-    ; On x86, it's a convenient single byte instruction!  (cf. NEXT macro)"
+        ; ***** LIT *****
+        ; esi always points to the next thing. Usually this is
+        ; the next word. But in this case, it's the literal value
+        ; to push onto the stack.
     DEFCODE "LIT",3,,LIT
-    lodsd
+    lodsd                   ; loads the value at esi into eax, incements esi
     push eax                ; push the literal number on to stack
     NEXT
 
@@ -511,7 +511,7 @@ _FIND:
     ; The strings are the same - return the header pointer in eax
     pop esi
     mov eax,edx
-    ret                     ; FOUND!
+    ret                     ; Found!
 
 .prev_word:
     mov edx,[edx]           ; Move back through the link field to the previous word
@@ -522,18 +522,127 @@ _FIND:
     xor eax,eax             ; Return zero to indicate not found (aka null ptr)
     ret
 
-	; , (COMMA) is used to append codewords to the current word that is
-        ; being compiled.
+
+
+
+
+
+
+
+        ; CREATE makes words! Specifically, the header portion of words.
+
+    DEFCODE "CREATE",6,,CREATE
+    pop ecx                   ; length of word name
+    pop ebx                   ; address of word name
+
+    ; link pointer
+    mov edi, var_HERE         ; the address of the header
+    mov eax, var_LATEST       ; get link pointer
+    stosw                     ; and store it in the header.
+
+    ; Length byte and the word itself.
+    mov al, cl                ; Get the length.
+    stosb                     ; Store the length/flags byte.
+    push esi
+    mov esi, ebx              ; esi = word
+    rep movsb                 ; Copy the word
+    pop esi
+    add edi, 3                ; Align to next 4 byte boundary. See TCFA
+    and edi, ~3
+
+    ; Update LATEST and HERE.
+    mov eax, [var_HERE]
+    mov [var_LATEST], eax
+    mov [var_HERE], edi
+    NEXT
+
+
+    ; COMMA (,) 
+    ; This is a super primitive word used to compile words. It puts the
+    ; currently-pushed value from the stack to the position pointed to
+    ; by HERE and increments HERE to the next 4 bytes.
 
     DEFCODE ",",1,,COMMA
-    pop eax                 ; Code pointer to store.
+    pop eax                ; Code pointer to store.
     call _COMMA
     NEXT
-_COMMA:
-    mov edi,[var_HERE]        ; HERE
-    stosw                   ; Store the 32-bit pointer in eax at the "here" position
-    mov [var_HERE],edi        ; Update HERE var (incremented)
+    _COMMA:
+    mov edi, [var_HERE]
+    stosw                  ; puts the value in eax at edi, increments edi
+    mov [var_HERE], edi
     ret
+
+    ; LBRAC and RBRAC ([ and ])
+    ; Simply toggle the STATE variable (0=immediate, 1=compile)
+    ; So:
+    ;       <compile mode> [ <immediate mode> ] <compile mode>
+    ;
+    ; Note that LBRAC has the immediate flag set because otherwise
+    ; it would get compiled rather than switch modes then and there.
+
+    DEFCODE "[",1,F_IMMED,LBRAC
+    xor eax, eax
+    mov [var_STATE], eax      ; Set STATE to 0 (immediate)
+    NEXT
+
+    DEFCODE "]",1,,RBRAC
+    mov [var_STATE], word 1   ; Set STATE to 1 (compile)
+    NEXT
+
+
+    ; Just two more "code" word definitions before we can define
+    ; COLON out of pure words.
+    ;
+    ; FETCH (@) grabs a value from an address on the stack and
+    ; puts that value on the stack.
+    ;
+    ; HIDDEN toggles the hidden flag for the dictionary entry
+    ; at the address on the stack
+    ;
+    ; EXIT pops the return stack value into esi - this is the
+    ; reverse of what DOCOL does.
+
+    DEFCODE "@",1,,FETCH
+    pop ebx                 ; address to fetch
+    mov eax, [ebx]          ; fetch it
+    push eax                ; push value onto stack
+    NEXT
+
+    DEFCODE "HIDDEN",6,,HIDDEN
+    pop edi                 ; Dictionary entry, first byte is link
+    add edi, 4              ; Move to name/flags byte.
+    xor [edi], word F_HIDDEN  ; Toggle the HIDDEN bit in place.
+    NEXT
+
+    DEFCODE "EXIT",4,,EXIT
+    POPRSP esi    	    ; pop return stack into esi
+    NEXT
+
+    ; COLON (:) creates the new word header and starts compile mode
+    ; It also sets the new definition to hidden so the word isn't
+    ; discovered while it is being compiled.
+
+    DEFWORD ":",1,,COLON
+    dd FWORD                 ; Get the name of the new word
+    dd CREATE               ; CREATE the dictionary entry / header
+    dd LIT, DOCOL, COMMA    ; Append DOCOL  (the codeword).
+    dd LATEST, FETCH, HIDDEN ; Make the word hidden while it's being compiled.
+    dd RBRAC                ; Go into compile mode.
+    dd EXIT                 ; Return from the function.
+
+    ; SEMICOLON (;) is an immediate word (F_IMMED) and it ends compile
+    ; mode and unhides the word entry being compiled.
+
+    DEFWORD ";",1,F_IMMED,SEMICOLON
+    dd LIT, EXIT, COMMA     ; Append EXIT (so the word will return).
+    dd LATEST, FETCH, HIDDEN ; Unhide word now that it's been compiled.
+    dd LBRAC                ; Go back to IMMEDIATE mode.
+    dd EXIT                 ; Return from the function.
+
+
+
+
+
 
 
 ; =============================================================================
@@ -603,7 +712,7 @@ _COMMA:
 
     DEFCONST "VERSION",7,,VERSION,NASMJF_VERSION
     DEFCONST "R0",2,,R0,return_stack_top
-    DEFCONST "DOCOL",5,,__DOCOL,docol
+    DEFCONST "DOCOL",5,,__DOCOL,DOCOL
     DEFCONST "F_IMMED",7,,__F_IMMED,F_IMMED
     DEFCONST "F_HIDDEN",8,,__F_HIDDEN,F_HIDDEN
     DEFCONST "F_LENMASK",9,,__F_LENMASK,F_LENMASK
