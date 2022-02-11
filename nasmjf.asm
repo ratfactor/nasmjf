@@ -536,9 +536,9 @@ _FIND:
     pop ebx                   ; address of word name
 
     ; link pointer
-    mov edi, var_HERE         ; the address of the header
-    mov eax, var_LATEST       ; get link pointer
-    stosw                     ; and store it in the header.
+    mov edi, [var_HERE]       ; the address of the header
+    mov eax, [var_LATEST]     ; get link pointer
+    stosd                     ; and store it in the header.
 
     ; Length byte and the word itself.
     mov al, cl                ; Get the length.
@@ -568,7 +568,7 @@ _FIND:
     NEXT
     _COMMA:
     mov edi, [var_HERE]
-    stosw                  ; puts the value in eax at edi, increments edi
+    stosd                  ; puts the value in eax at edi, increments edi
     mov [var_HERE], edi
     ret
 

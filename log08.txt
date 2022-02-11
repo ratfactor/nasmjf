@@ -1,0 +1,60 @@
+    Now there are a bunch of problems.
+
+    CREATE should be creating the next link in our linked
+    list of words (the dictionary). The link should point
+    to the most recent word defined (LATEST) and should be
+    put wherever HERE points (that's the free space where we
+    can compile new words).
+
+    Well, I haven't set up the space HERE points to yet, so
+    that's probably the next thing I should do.
+
+    Then it looks like I've got a typo where I should be getting
+    the address STORED at var_HERE, not the address of var_HERE
+    itself.
+
+    Same with var_LATEST - they should both be [FOO] instead
+    of FOO. Silly late night transcription mistakes.
+
+    Finally, the address I'm attempting to store is clearly
+    getting truncated: 0x0804a3bc becomes 0x0000a3bc.
+
+(gdb) break code_CREATE
+Breakpoint 2 at 0x8049235: file nasmjf.asm, line 535.
+(gdb) c
+Continuing.
+: FIVE 5 ;
+
+Breakpoint 2, code_CREATE () at nasmjf.asm:535
+535         pop ecx                   ; length of word name
+536         pop ebx                   ; address of word name
+539         mov edi, var_HERE         ; the address of the header
+540         mov eax, var_LATEST       ; get link pointer
+(gdb) x/x &var_LATEST
+0x804a3bc <var_LATEST>: 0x0804a3ac
+(gdb) info symb (int)var_LATEST
+name_LATEST in section .data of /home/dave/nasmjf/nasmjf
+541         stosw                     ; and store it in the header.
+544         mov al, cl                ; Get the length.
+(gdb) x/x &var_HERE
+0x804a384 <var_HERE>:   0x0000a3bc
+
+    First, the truncation of the address is an easy fix.
+    Just needed to change "stosw" to "stosd".
+
+    (This is one of those cases where the size of a
+    "word" has lost all meaning in x86. It should be
+    the native data size of the CPU, but it got stuck
+    at 16 bits.  So 32bit and 64bit x86 has "double"
+    and "big fat juicy sausage" for its native data
+    sizes respectively. Brilliant!)
+
+541         stosd                     ; and store it in the header.
+(gdb) x/x &var_HERE
+0x804a384 <var_HERE>:   0x0804a3bc
+
+    The funny thing about my mistake with var_HERE
+    is that it's probably let me get further than I
+    should have: it currently doesn't store the
+    correct address at all!  So I'll fix the typo
+    first and then add the memory allocation next.
