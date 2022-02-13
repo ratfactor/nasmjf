@@ -1,0 +1,190 @@
+    Okay, since the last log, the var_HERE typo has been
+    fixed. CREATE is now getting the adddress _at_ HERE, now
+    the address _of_ here. We'll test that in this log.
+
+    And the memory allocator is in. I moved from the bottom
+    where Jones had it up into _start where it's used. I get
+    why it could be considered distracting from the Forth
+    concepts. But it's short and important and this is my
+    port, so up
+    it goes.
+
+    We'll start by trying it out:
+
+_start () at nasmjf.asm:101
+101         xor ebx, ebx
+102         mov eax, [__NR_brk]       ; syscall brk
+
+Program received signal SIGSEGV, Segmentation fault.
+
+    Oops! __NR_brk is a NASM preprocessor assigned value,
+    not a runtime variable!
+
+(gdb) load nasmjf
+`/home/dave/nasmjf/nasmjf' has changed; re-reading symbols.
+(gdb) r
+Starting program: /home/dave/nasmjf/nasmjf
+_start () at nasmjf.asm:101
+101         xor ebx, ebx
+102         mov eax, __NR_brk         ; syscall brk
+103         int 0x80
+(gdb) p/x $eax
+$1 = 0x804e000
+
+    Okay, so we now have our old "break" address. By the way,
+    see the source for my explanation of how the brk syscall
+    works. A lot of man pages, web pages, and discussion are
+    about the C stdlib brk() and sbrk(), but those are NOT
+    identical in usage to the syscall!
+
+    Then we request a new break address which is 0x16000
+    bytes "larger" than the old one. When we do this, Linux
+    reserves the memory in between for us!
+
+104         mov [var_HERE], eax       ; eax has start addr of data segment
+105         add eax, 0x16000          ; add our desired number of bytes to break addr
+106         mov ebx, eax              ; reserve memory by setting this new break addr
+107         mov eax, __NR_brk         ; syscall brk again
+108         int 0x80
+(gdb) p/x $eax
+$2 = 0x8064000
+
+    That looks right and means the new address means the
+    request succeeded.
+
+        previous break addr: 0x804e000
+                             + 0x16000
+             new break addr: 0x8064000
+
+    Now the rest of the startup continues.
+
+112         mov esi, cold_start
+27          lodsd     ; NEXT: Load from memory into eax, inc esi to point to next word.
+28          jmp [eax] ; Jump to whatever code we're now pointing at.
+
+    It's time to see if the new memory allocation and the
+    var_HERE fix are working properly together to allow the
+    creation of new words in the dictionary.
+
+(gdb) break code_CREATE
+Breakpoint 3 at 0x8049251: file nasmjf.asm, line 559.
+(gdb) c
+Continuing.
+: FIVE 5 ;
+
+Breakpoint 3, code_CREATE () at nasmjf.asm:559
+559         pop ecx                   ; length of word name
+560         pop ebx                   ; address of word name
+563         mov edi, [var_HERE]       ; the address of the header
+(gdb) p/x (int)var_HERE
+$4 = 0x804e000
+
+    Excellent, the address at HERE looks like the start of
+    the space we reserved (the original "break" address
+    and the new break address mark the start and end of the
+    data section we've reserved).
+
+    Now we're going to store the link to the last dictionary
+    word entry in LATEST as the first 4 bytes of the header
+    of the new FIVE word we're compiling right now.
+
+    LATEST should point to its own header (how I chose to do
+    it), which is labeled "name_LATEST":
+
+564         mov eax, [var_LATEST]     ; get link pointer
+565         stosd                     ; and store it in the header.
+(gdb) p/x $eax
+$6 = 0x804a3ac
+(gdb) info sym $eax
+name_LATEST in section .data of /home/dave/nasmjf/nasmjf
+
+    So far so good. We'll see if it stores it correctly in a
+    moment. Now we store the rest of the header:
+
+           -- Header With Name --
+        4 bytes - link to previous word <--- done
+        1 byte  - length of name + flags
+        N bytes - the ascii characters of the name
+        N bytes - possible empty space for 4 byte alignment
+           -- Code Body --
+        <link to DOCOL to "interpret" the rest>
+        <the rest of the word addresses>
+
+    Neither the header nor the body symbols (name_FIVE,
+    code_FIVE) will exist in GDB since they're now written
+    in NASM and there aren't any symbols for them in the
+    DWARF2 debugging information in the executable.
+    From now on, we're making words with real Forth!
+
+568         mov al, cl                ; Get the length.
+569         stosb                     ; Store the length/flags byte.
+570         push esi
+571         mov esi, ebx              ; esi = word
+572         rep movsb                 ; Copy the word
+573         pop esi
+574         add edi, 3                ; Align to next 4 byte boundary. See TCFA
+575         and edi, ~3
+
+    Okay, let's see if the header is correct. First, HERE
+    should still be pointing to the beginning of the new
+    word's header because we haven't update it yet.
+
+    And the very first thing in the header should be a link
+    to the previous word in the dictionary.
+
+(gdb) x/xw (int)var_HERE
+0x804e000:      0x0804a3ac
+
+    Yup, that looks like the address of name_LATEST we saw
+    earlier.
+
+    Next is the length plus flags. In this case, just
+    length. Which should be 4 for the characters in the
+    name "FIVE".
+
+(gdb) x/xb (int)var_HERE + 4
+0x804e004:      0x04
+
+    Excellent, and finally, we should have the string "FIVE"
+    stored as ascii characters in the next four bytes.
+
+(gdb) x/4cb (int)var_HERE + 5
+0x804e005:      70 'F'  73 'I'  86 'V'  69 'E'
+
+    Bingo!
+
+    Now CREATE updates HERE to point at the address after
+    the header (aligned to 4 bytes) and LATEST to point to
+    the header of our new word.
+
+578         mov eax, [var_HERE]
+579         mov [var_LATEST], eax
+580         mov [var_HERE], edi
+
+    Now our old pal NEXT will be moving on to the next word
+    in COLON to continue the compilation process.
+
+    Here's the entire definition of COLON:
+
+        DEFWORD ":",1,,COLON
+        dd FWORD                 ; Get the name of the new word
+        dd CREATE               ; CREATE the dictionary entry / header
+        dd LIT, DOCOL, COMMA    ; Append DOCOL  (the codeword).
+        dd LATEST, FETCH, HIDDEN ; Make the word hidden while it's being compiled.
+        dd RBRAC                ; Go into compile mode.
+        dd EXIT                 ; Return from the function.
+
+    So it looks like LIT is next.
+
+27          lodsd     ; NEXT: Load from memory into eax, inc esi to point to next word.
+28          jmp [eax] ; Jump to whatever code we're now pointing at.
+code_LIT () at nasmjf.asm:493
+493         lodsd                   ; loads the value at esi into eax, incements esi
+494         push eax                ; push the literal number on to stack
+
+    Yup! Well, this has been great progress. The header for
+    our new word has been stored in memory we reserved.
+
+    I keep falling asleep, so the next log will pick up
+    where this left off. Then I can figure out what the heck
+    LIT is supposed to be accomplishing here.

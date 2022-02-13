@@ -72,7 +72,6 @@ DOCOL:
     NEXT
 
 ; +----------------------------------------------------------------------------+
-; +----------------------------------------------------------------------------+
 global _start
 
 _start:
@@ -85,10 +84,35 @@ _start:
                               ; LOL, I accidentally had this set to the "bottom" of
                               ; the stack instead and it grew up into my last word
                               ; definition - which took FOREVER to figure out!
-    mov esi, cold_start       ; give next forth word to execute
 
-    NEXT ; Run!
+    ; Allocate memory for Forth dictionary.
+    ; First, we get the start address of the "break", which is where
+    ; the data segment starts. Then we request a break that is at a new
+    ; address N bytes larger. The OS does it and now we've got more
+    ; memory available to us!
+    ;
+    ; Note that brk returns the current break address on failure, so
+    ; the first call we make with 0 in ebx is a way of making brk fail
+    ; on purpose! Most examples on the web scrupulously avoid explaining
+    ; this.
+    ;
+    ; My understanding is that Linux will ACTUALLY allocate the memory
+    ; when we attempt to use it. And it will do so in 4Kb chunks.
+    xor ebx, ebx
+    mov eax, __NR_brk         ; syscall brk
+    int 0x80
+    mov [var_HERE], eax       ; eax has start addr of data segment
+    add eax, 0x16000          ; add our desired number of bytes to break addr
+    mov ebx, eax              ; reserve memory by setting this new break addr
+    mov eax, __NR_brk         ; syscall brk again
+    int 0x80
 
+    ; Now "prime the pump" for the NEXT macro by sticking an indirect
+    ; address in esi. NEXT will jump to whatever's stored there.
+    mov esi, cold_start
+    NEXT ; Start Forthing!
+
+; +----------------------------------------------------------------------------+
 ; "flags" for Forth word definitions
 %assign F_IMMED 0x80
 %assign F_HIDDEN 0x20
