@@ -212,7 +212,7 @@ _start:
         ; just try to exit gracefully:
     DEFCODE "gtfo",4,0,gtfo
     mov ebx, 0    ; exit code
-        mov eax, 1    ; exit syscall
+    mov eax, 1    ; exit syscall
     int 80h       ; call kernel
 
 

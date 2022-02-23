@@ -1,0 +1,142 @@
+    Now that CREATE seems to work (making our new word's
+    dictionary entry header, we can take a look at the
+    rest of the words in COLON, starting with LIT.
+
+    Jones has a good explanation of LIT in the original
+    source. In short, it lets you get the address of a
+    word without executing that word. So:
+
+        LIT DOCOL COMMA
+
+    pushes the address of DOCOL on the stack for COMMA
+    to use.
+
+    The way it works is really clever. It basically works
+    just like the NEXT macro, except instead of jumping
+    to the address to execute it, LIT pushes the address
+    on the stack so it will be avaiable for the next
+    command.
+
+    Here's LIT:
+
+        lodsd
+        push eax
+
+    Here's NEXT:
+
+        lodsd
+        jmp [eax]
+
+    In both cases, lodsd stores the value pointed to by esi
+    in eax and then increments esi by 4 so it points to the
+    next word.
+
+    What's clever about this is that the lodsd will end up
+    being called twice and the word we just got the address
+    for will be skipped, not executed.
+
+    So here it is and the symbol pushed on the stack should
+    be DOCOL.
+
+code_LIT () at nasmjf.asm:493
+493         lodsd                   ; loads the value at esi into eax, incements esi
+494         push eax                ; push the literal number on to stack
+(gdb) info sym $eax
+DOCOL in section .text of /home/dave/nasmjf/nasmjf
+
+    Cool, continuing on, NEXT calls COMMA, which just
+    pops the address back off the top of the stack
+    and then stores it at HERE. So that's how
+
+        LIT DOCOL COMMA
+
+    puts the address of DOCOL into the definition of
+    our new word. Neat. :-)
+
+(NEXT macro snipped)
+code_COMMA () at nasmjf.asm:590
+590         pop eax                ; Code pointer to store.
+591         call _COMMA
+594         mov edi, [var_HERE]
+595         stosd                  ; puts the value in eax at edi, increments edi
+596         mov [var_HERE], edi
+597         ret
+
+    Next, we'll get the address of our new word from
+    LATEST, fetch it,
+
+        dd LATEST, FETCH, HIDDEN ; Make the word hidden while it's being compiled.
+
+    ; FETCH (@) grabs a value from an address on the stack and
+    ; puts that value on the stack.
+    ;
+    ; HIDDEN toggles the hidden flag for the dictionary entry
+    ; at the address on the stack
+
+    And LATEST is a variable that pushes the current
+    word onto the stack.
+
+    LATET makes sense: we'll get the word's address in order
+    to toggle its hidden flag so a partially-compiled word
+    won't show up in any dictionary searches (which I guess could
+    happen if a word relied on a previous definition of itself?)
+
+(NEXT macro snipped)
+code_LATEST () at nasmjf.asm:771
+771         push dword [var_%4]
+(NEXT macro snipped)
+
+    But I confess that I don't understand why we're using FETCH
+    after LATEST. LATEST has the address of the current word
+    being compiled. FETCH pops an address and pushes the value
+    at that address. And the value at the beginning of every word
+    "header" is a link to the previous word in the dictionary's
+    linked list.
+
+    So won't HIDDEN be toggling the previous word, not the
+    current word? Doesn't FETCH return the linked word?
+
+code_FETCH () at nasmjf.asm:630
+630         pop ebx                 ; address to fetch
+631         mov eax, [ebx]          ; fetch it
+632         push eax                ; push value onto stack
+(NEXT macro snipped)
+code_HIDDEN () at nasmjf.asm:636
+636         pop edi                 ; Dictionary entry, first byte is link
+637         add edi, 4              ; Move to name/flags byte.
+638         xor [edi], word F_HIDDEN  ; Toggle the HIDDEN bit in place.
+(gdb) x/bx $edi
+0x804a3b0:      0x06
+(gdb) x/6c $edi + 1
+0x804a3b1:      76 'L'  65 'A'  84 'T'  69 'E'  83 'S'  84 'T'
+
+    Uh, yeah, that's LATEST. Either this is a bug in the original
+    or I made a mistake somewhere. The later seems more likely.
+    This isn't a showstopper, though. Compilation can work without
+    it.
+
+    This next part is amazing: so to re-use all the same mechanisms
+    for input and word lookup, etc, FORTH just sets the state to
+    "compiling mode". Then "EXITs" back to input to get the rest
+    of the word definition.
+
+(NEXT macro snipped)
+code_RBRAC () at nasmjf.asm:613
+613         mov [var_STATE], word 1   ; Set STATE to 1 (compile)
+(NEXT macro snipped)
+code_EXIT () at nasmjf.asm:44
+44          mov %1, [ebp]
+45          lea ebp, [ebp+4]
+(NEXT macro snipped)
+code_gtfo () at nasmjf.asm:214
+214         mov ebx, 0    ; exit code
+215             mov eax, 1    ; exit syscall
+216         int 80h       ; call kernel
+[Inferior 1 (process 2529) exited normally]
+
+    So two things to address:
+
+        1. I guess remove the FETCH (@) and see if HIDDEN hides
+           the correct word.
+        2. Add BRANCH so the interpreter an keep on getting input
+           for the compilation of our new word!
