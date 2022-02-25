@@ -1,0 +1,49 @@
+    I find it hard to believe that I've discovered a
+    bug in JonesFORTH, but it seems to me that my fix
+    of simply removing FETCH from colon so that the
+    word header that receives the HIDDEN flag is the
+    one being compiled, not the previous one in the
+    linked list (dictionary).
+
+    So unless I discover otherwise, I've changed it
+    from
+
+        
+        dd LATEST, FETCH, HIDDEN ; Make the word hidden while it's being compiled.
+
+    to
+
+        dd LATEST, HIDDEN ; Make the word hidden while it's being compiled.
+
+(gdb) break code_LATEST
+Breakpoint 2 at 0x804939d: file nasmjf.asm, line 772.
+(gdb) c
+Continuing.
+: FIVE 5 ;
+
+Breakpoint 2, code_LATEST () at nasmjf.asm:772
+772             push dword [var_%4]
+27          lodsd     ; NEXT: Load from memory into eax, inc esi to point to next word.
+28          jmp [eax] ; Jump to whatever code we're now pointing at.
+code_HIDDEN () at nasmjf.asm:636
+636         pop edi                 ; Dictionary entry, first byte is link
+637         add edi, 4              ; Move to name/flags byte.
+
+    If my fix works, then the word "FIVE" that is being compiled
+    will be the one we're hiding until compilation is complete:
+
+(gdb) x/bx $edi
+0x804e004:      0x04
+(gdb) x/bt $edi
+0x804e004:      00000100
+(gdb) x/4c $edi+1
+0x804e005:      70 'F'  73 'I'  86 'V'  69 'E'
+
+    Yup, looks good! And the hidden flag?
+
+638         xor [edi], word F_HIDDEN  ; Toggle the HIDDEN bit in place.
+
+(gdb) x/bt $edi
+0x804e004:      00100100
+
+    Next, let's implement BRANCH!

@@ -650,7 +650,8 @@ _FIND:
     dd FWORD                 ; Get the name of the new word
     dd CREATE               ; CREATE the dictionary entry / header
     dd LIT, DOCOL, COMMA    ; Append DOCOL  (the codeword).
-    dd LATEST, FETCH, HIDDEN ; Make the word hidden while it's being compiled.
+    ;dd LATEST, FETCH, HIDDEN ; Make the word hidden while it's being compiled.
+    dd LATEST, HIDDEN ; Make the word hidden while it's being compiled.
     dd RBRAC                ; Go into compile mode.
     dd EXIT                 ; Return from the function.
 
