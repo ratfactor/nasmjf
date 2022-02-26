@@ -205,7 +205,7 @@ _start:
     dd R0           ; push R0 (addr of top of return stack)
     dd RSPSTORE     ; store R0 in return stack pointer (ebp)
     dd INTERPRET    ; interpret the next word
-    ;dd BRANCH,-8    ; and loop (indefinitely)
+    dd BRANCH,-8    ; and loop (indefinitely)
 
     dd gtfo
 
@@ -226,6 +226,16 @@ _start:
     pop ebp
     NEXT
 
+    ; BRANCH is the simplest possible way to loop - it always
+    ; moves the word pointer by the amount in the next value
+    ; pointed to by esi! It's helpful to see how LIT works because
+    ; it's a similar premise - the value after BRANCH isn't a
+    ; word address, it's the amount to add to esi.
+    ; To branch/loop back to a previous instruction, you provide
+    ; a negative offset.
+    DEFCODE "BRANCH",6,,BRANCH
+    add esi, [esi]          ; add the offset to the instruction pointer
+    NEXT
 
         ;
         ; * * *   The Forth interpreter!   * * *

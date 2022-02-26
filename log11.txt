@@ -42,8 +42,76 @@ code_HIDDEN () at nasmjf.asm:636
     Yup, looks good! And the hidden flag?
 
 638         xor [edi], word F_HIDDEN  ; Toggle the HIDDEN bit in place.
-
 (gdb) x/bt $edi
 0x804e004:      00100100
 
+    Looks good also.
+
     Next, let's implement BRANCH!
+    Turns out, it's another crazy simple "hack" with
+    the esi register (like LIT), this time, adding an
+    offset to esi itself to change which word NEXT
+    should execute next.
+
+(gdb) break code_BRANCH
+Breakpoint 2 at 0x804904e: file nasmjf.asm, line 237.
+(gdb) c
+Continuing.
+: FIVE 5 ;
+
+Breakpoint 2, code_BRANCH () at nasmjf.asm:237
+237         add esi, [esi]          ; add the offset to the instruction pointer
+
+    The line above is the entirety of BRANCH! 
+    So before that line executes, esi should point
+    to the next "word" in the definition of QUIT, which
+    is actually not a word at all, but an offset to
+    add to the current value of esi itself.
+
+    So we should see QUIT + <some offset> in esi
+
+(gdb) info sym $esi
+QUIT + 20 in section .data of /home/dave/nasmjf/nasmjf
+
+    And the value at esi should be our negative offset, -8.
+
+(gdb) p *$esi
+$2 = -8
+
+    What will -8 branch to? Here's the entire definition
+    of QUIT:
+    
+        DEFWORD "QUIT",4,0,QUIT
+        dd R0           ; push R0 (addr of top of return stack)
+        dd RSPSTORE     ; store R0 in return stack pointer (ebp)
+        dd INTERPRET    ; interpret the next word
+        dd BRANCH,-8    ; and loop (indefinitely)
+
+    esi was pointing at the "double" (4 bytes) containing
+    the value -8. Every word linked here is also 4 bytes.
+
+        esi   points to -8          (QUIT + 20)
+        esi-4 points to BRANCH      (QUIT + 16)
+        esi-8 points to INTERPRET   (QUIT + 12)
+
+    So BRANCH here makes a conditionless loop over INTERPRET.
+
+(gdb) info sym $esi
+QUIT + 12 in section .data of /home/dave/nasmjf/nasmjf
+27          lodsd     ; NEXT: Load from memory into eax, inc esi to point to next word.
+28          jmp [eax] ; Jump to whatever code we're now pointing at.
+code_INTERPRET () at nasmjf.asm:244
+244         call _WORD              ; Returns %ecx = length, %edi = pointer to word.
+
+    This is getting exciting. So we shoud be able to compile
+    a word and then execute it. Let's see how my "FIVE" literal
+    works:
+
+(gdb) c
+Continuing.
+FIVE
+PARSE ERROR: FIVE
+
+    Oh no! It didn't find FIVE. So something in the
+    compilation of ": FIVE 5 ;" isn't quite right yet.
+
