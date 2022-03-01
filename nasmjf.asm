@@ -670,7 +670,8 @@ _FIND:
 
     DEFWORD ";",1,F_IMMED,SEMICOLON
     dd LIT, EXIT, COMMA     ; Append EXIT (so the word will return).
-    dd LATEST, FETCH, HIDDEN ; Unhide word now that it's been compiled.
+;    dd LATEST, FETCH, HIDDEN ; Unhide word now that it's been compiled.
+    dd LATEST, HIDDEN ; Unhide word now that it's been compiled.
     dd LBRAC                ; Go back to IMMEDIATE mode.
     dd EXIT                 ; Return from the function.
 

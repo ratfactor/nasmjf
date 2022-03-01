@@ -104,7 +104,7 @@ code_INTERPRET () at nasmjf.asm:244
 244         call _WORD              ; Returns %ecx = length, %edi = pointer to word.
 
     This is getting exciting. So we shoud be able to compile
-    a word and then execute it. Let's see how my "FIVE" literal
+    a word and then execute it. Let's see if my "FIVE" literal
     works:
 
 (gdb) c
@@ -115,3 +115,41 @@ PARSE ERROR: FIVE
     Oh no! It didn't find FIVE. So something in the
     compilation of ": FIVE 5 ;" isn't quite right yet.
 
+    Wait a dang second.
+
+    I've removed the FETCH so it's no longer setting the
+    wrong word header to hidden during compilation. But
+    I didn't make the same change in SEMICOLON (;) to
+    unhide the correct word!
+
+        dd LATEST, FETCH, HIDDEN ; Unhide word now that it's been compiled.
+
+    Removing the FETCH so we have
+
+        dd LATEST, HIDDEN ; Unhide word now that it's been compiled.
+
+    and let's see what happens.
+
+(gdb) break code_INTERPRET
+Breakpoint 2, code_INTERPRET () at nasmjf.asm:244
+(gdb) c
+Continuing.
+: FIVE 5 ;
+
+Breakpoint 2, code_INTERPRET () at nasmjf.asm:244
+(gdb) c
+Continuing.
+FIVE
+
+Breakpoint 2, code_INTERPRET () at nasmjf.asm:244
+(gdb) p/x $esp
+$3 = 0xbffff98c
+(gdb) x/x $esp
+0xbffff98c:     0x00000005
+
+    Using my compiled word FIVE put a 5 on the stack!
+    It works!
+
+    I think I've earned a bit of fun, so the next thing
+    I'll implement is EMIT, which will let me actually
+    dislay

@@ -3,5 +3,5 @@ nasmdoc.txt
 nasmjf.listing
 nasmjf.o
 nasmjf
-.swo
-.swp
+*.swo
+*.swp
