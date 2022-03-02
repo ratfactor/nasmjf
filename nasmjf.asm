@@ -52,6 +52,7 @@ return_stack_top: resb 4
 var_S0:       resb 4
 data_segment: resb 1024 
 buffer:       resb buffer_size
+emit_scratch: resb 4 ; note: JF had this in .data as .space 1
 
 SECTION .data
 
@@ -684,6 +685,22 @@ _FIND:
 ; =============================================================================
 ; Final word definitions
 ; =============================================================================
+
+    ; EMIT just displays a character of output from the stack.
+    ; It doesnt attempt to be efficient at all (no buffering, etc.)
+    DEFCODE "EMIT",4,,EMIT
+    pop eax
+    call _EMIT
+    NEXT
+_EMIT:
+    mov [emit_scratch], al  ; put char to print at scratch space
+    mov ebx, 1              ; syscall param 1: stdout
+    mov ecx, emit_scratch   ; syscall param 2: address to print
+    mov edx, 1              ; syscall param 3: length in bytes to print
+    mov eax, __NR_write     ; syscall 'write'
+    int 0x80                ; request syscall!
+    ret
+
 
     DEFCODE "CHAR",4,,CHAR
     call _WORD              ; Returns %ecx = length, %edi = pointer to word.

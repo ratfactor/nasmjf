@@ -152,4 +152,4 @@ $3 = 0xbffff98c
 
     I think I've earned a bit of fun, so the next thing
     I'll implement is EMIT, which will let me actually
-    dislay
+    display characters on the screen!

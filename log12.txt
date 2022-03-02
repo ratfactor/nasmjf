@@ -1,0 +1,47 @@
+    Okay, EMIT is written. Now to test it, I'll
+    push an ASCII character value on the stack
+    and call it.
+
+(gdb) c
+Continuing.
+65 EMIT
+A
+
+    No way...it works!
+
+    How about pushing "Foo" onto the stack and
+    emitting it all at once:
+
+70 111 111 EMIT EMIT EMIT
+ooF
+
+    Ha ha, "oof" is right. The first of, no doubt,
+    many out-of-order mistakes.
+
+111 111 70 EMIT EMIT EMIT
+Foo
+
+    Now how about compiling a word?
+
+: star 42 EMIT ;
+star
+*
+
+    And the true test: can I compile a word using the
+    new word?
+
+: 3star star star star ;
+3star
+***
+
+    Wow. I have a FORTH!
+
+    JonesFORTH defines a bunch of words in assembly (mostly
+    for speed - there's some theoretical minimum core of
+    FORTH words from which all the others could be defined,
+    but assembly's gonna be faster.
+
+    So what I'll do is start implementing those. I'll try
+    to test them all with EMIT output because that's more fun
+    than examining registers. But I doubt we're done with
+    GBD just yet.
