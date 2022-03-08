@@ -45,3 +45,44 @@ star
     to test them all with EMIT output because that's more fun
     than examining registers. But I doubt we're done with
     GBD just yet.
+
+    - - - - -
+
+    Next night: wait a second! I just realized this is an
+    opportunity to demonstrate that this thing is now capable
+    of executing the "Hello world" greeting.
+
+    - - - - -
+
+    Next night: okay, I fell asleep entering my hello world
+    last night. Let's give it another shot. :-)
+
+: h1 111 108 108 101 72 EMIT EMIT EMIT EMIT EMIT ;
+h1
+Hello
+: h2 100 108 114 87 EMIT EMIT EMIT EMIT EMIT ;
+h2
+Wrld
+
+    Oops! LOL, I left out the 'o'. Well, I am spelling
+    this out backwards in ASCII...
+
+    So, with Forth, I can just redefine the h2
+    word and the new definition will replace the
+    broken one...
+
+: h2 100 108 114 111 87 EMIT EMIT EMIT EMIT EMIT ;
+h2
+World
+
+    That's better. And I'll make a word for space:
+
+: s 32 EMIT ;
+s
+
+    And now for my triumphant Hello World:
+
+h1 s h2
+Hello World
+
+    TADA!
