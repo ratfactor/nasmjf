@@ -701,6 +701,29 @@ _EMIT:
     int 0x80                ; request syscall!
     ret
 
+    ; ==============================
+    ; stack manipulation words
+
+    ; drop top of stack
+    DEFCODE "DROP",4,,DROP
+    pop eax
+    NEXT
+
+    ; swap top two elements
+    DEFCODE "SWAP",4,,SWAP
+    pop eax
+    pop ebx
+    push eax
+    push ebx
+    NEXT
+
+    ; duplicate element on top of stack
+    DEFCODE "DUP",3,,DUP
+    mov eax, [esp]
+    push eax
+    NEXT
+
+
 
     DEFCODE "CHAR",4,,CHAR
     call _WORD              ; Returns %ecx = length, %edi = pointer to word.

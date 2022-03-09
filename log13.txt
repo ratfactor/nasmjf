@@ -1,0 +1,50 @@
+    Now we can start fleshing out this Forth implementation
+    with some basic words. I'll start with the stack manipulation
+    words as defined in assembly (for speed) in JonesFORTH:
+
+        ; drop top of stack
+        DEFCODE "DROP",4,,DROP
+        pop eax
+        NEXT
+
+    I'll test each one out as I go. Here's DROP:
+
+65 EMIT
+A
+65 66 67
+DROP EMIT
+B
+EMIT
+A
+
+    Good, it dropped 67 ('c') from the top of the stack.
+
+    And swap:
+
+        ; swap top two elements
+        DEFCODE "SWAP",4,,SWAP
+        pop eax
+        pop ebx
+        push eax
+        push ebx
+        NEXT
+
+    Which is easy to test:
+
+65 66 EMIT EMIT
+BA
+65 66 SWAP EMIT EMIT
+AB
+
+    Finally,
+
+        ; duplicate element on top of stack
+        DEFCODE "DUP",3,,DUP
+        mov eax, [esp]
+        push eax
+        NEXT
+
+65 DUP 66 DUP EMIT EMIT EMIT EMIT
+BBAA
+
+    Awesome.
