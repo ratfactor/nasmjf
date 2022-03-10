@@ -48,3 +48,49 @@ AB
 BBAA
 
     Awesome.
+
+    Next night: okay I've ported over OVER, ROT, -ROT, 
+    2DROP, 2DUP, 2SWAP, and ?DUP. I'll just test them all
+    at once and won't bother with the source - they're
+    as simple as the above - so it's really easy to read
+    their assembly definitions in the source file.
+
+: A 65 ;
+A EMIT
+A
+: B 66 ;
+: C 67 ;
+: D 68 ;
+: e EMIT ;
+A B C D e e e e
+DCBA
+A B C OVER e e e e
+BCBA
+A B C ROT e e e
+ACB
+A B C -ROT e e e
+BAC
+A B C D DROP e e e
+CBA
+A B C D 2DROP e e
+BA
+A B C D 2SWAP e e e e
+BADC
+A B ?DUP e e e
+BBA
+A B 0 ?DUP e e e
+
+Program received signal SIGSEGV, Segmentation fault.
+_FIND.test_word () at nasmjf.asm:532
+532         mov al, [edx+4]           ; al = flags+length field
+(gdb)
+
+    LOL, well, ?DUP is a little hard to test compared
+    to the others. Though a segfault for trying to print
+    an ASCII NUL seems weird, and is GDB telling me it
+    crashed in FIND? Hmm. I'll have to keep an eye on that.
+
+    The next series of words to define in assembly are
+    math operators, which is great. But I think I'm going
+    to need to be able to display numbers before that'll
+    be any fun to test...

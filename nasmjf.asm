@@ -723,6 +723,70 @@ _EMIT:
     push eax
     NEXT
 
+    ; duplicate second element of stack to top
+    DEFCODE "OVER",4,,OVER
+    mov eax, [esp+4]
+    push eax
+    NEXT
+
+    ; rotate the top three items on stack (ABC -> BCA)
+    DEFCODE "ROT",3,,ROT
+    pop eax
+    pop ebx
+    pop ecx
+    push ebx
+    push eax
+    push ecx
+    NEXT
+
+    ; reverse rotate top three items on stack (ABC -> CAB)
+    DEFCODE "-ROT",4,,NROT
+    pop eax
+    pop ebx
+    pop ecx
+    push eax
+    push ecx
+    push ebx
+    NEXT
+
+    ; drop top two elements from stack
+    DEFCODE "2DROP",5,,TWODROP
+    pop eax
+    pop eax
+    NEXT
+
+    ; duplicate top two elements on stack
+    DEFCODE "2DUP",4,,TWODUP
+    mov eax, [esp]
+    mov ebx, [esp + 4]
+    push ebx
+    push eax
+    NEXT
+
+    ; swap top two pairs (ABCD -> CDAB)
+    DEFCODE "2SWAP",5,,TWOSWAP
+    pop eax
+    pop ebx
+    pop ecx
+    pop edx
+    push ebx
+    push eax
+    push edx
+    push ecx
+    NEXT
+
+    ; duplicate top element on stack if it's non-zero
+    DEFCODE "?DUP",4,,QDUP
+    mov eax, [esp]
+    test eax, eax
+    jz .skip
+    push eax
+.skip:
+    NEXT
+
+
+
+
 
 
     DEFCODE "CHAR",4,,CHAR
