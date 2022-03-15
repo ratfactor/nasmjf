@@ -93,4 +93,104 @@ _FIND.test_word () at nasmjf.asm:532
     The next series of words to define in assembly are
     math operators, which is great. But I think I'm going
     to need to be able to display numbers before that'll
-    be any fun to test...
+    be any fun to test.
+
+    ...
+
+    Several nights later: Done! Thanks to one of the utility
+    routines I wrote as part of the excellent asmtutor.com,
+    I was able to slap in a temporary stand-in for the DOT
+    word which Jones defines in pure Forth.
+
+    DOT (.) pops and prints the numeric value at the top of
+    the stack. At least, I think it's supposed to pop the
+    value...well, mine does, for now.
+
+Starting program: /home/dave/nasmjf/nasmjf
+Continuing.
+1 .
+1
+11 .
+11
+111 .
+111
+1111 .
+1111
+11111 .
+
+Program received signal SIGSEGV, Segmentation fault.
+_FIND.test_word () at nasmjf.asm:532
+532         mov al, [edx+4]           ; al = flags+length field
+
+    Works great, but for some reason, accessing edx+4 causes a
+    segfault when we try to match a word with a 5-digit number?
+    I started stepping throuh it, but I wasn't feeling like
+    chasing the rabbit into that particular hole tonight. We've
+    got some new math-related words to test!
+
+    1+ and 1- increment and decrement.
+    4+ and 4- do the same, but by 4.
+
+5 1+ .
+6
+5 1- .
+4
+5 4+ .
+9
+5 4- .
+1
+
+    Then we have + and -.
+
+5 4 + .
+134521461
+
+    LOL, what?
+
+5 4 + .
+Program received signal SIGSEGV, Segmentation fault.
+0x00000004 in ?? ()
+
+    Well, clearly "+" has a bug.
+
+5 4 - .
+1
+
+    But "-" looks good. I'm curious about a negative
+    value:
+
+4 5 - .
+4294967295
+
+    I'll have to check thia answer. Is this -1?
+
+    Moving on, we have multiplication and division:
+
+2 3 * .
+6
+10 5 /MOD . .
+2 0
+100 3 /MOD . .
+33 1
+
+    Great! Note: I added space beween the quotient and remainder
+    for readability. The 'real' DOT in forth prints a space after
+    each digit.
+
+    Cool! So we've got math!
+
+    Oh, and we need a satisfying conclusion on the ?DUP operator
+    from our stack manipulation words from the beginning of this
+    particular log.
+
+    ?DUP duplicates the value on the top of the stack IF it's not 
+    zero:
+
+1 2 3 ?DUP . . .
+332
+1 2 0 ?DUP . . .
+021
+
+    Yup, that works!
+
+    Looks like I'll find the bug in "+" next. :-)

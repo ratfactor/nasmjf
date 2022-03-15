@@ -701,6 +701,45 @@ _EMIT:
     int 0x80                ; request syscall!
     ret
 
+    ; DOT (temporary definiion) displays ascii decimal represention
+    ; of numbers. Based on "echoi" proc written as part of asmtutor.com
+    ; The real dot will be written as pure Forth later.
+    DEFCODE ".",1,,DOT
+    pop eax
+    call _DOT
+    NEXT
+_DOT:
+    push esi ; preserve
+    mov ecx, 0 ; counter of digits to print at the end
+.divideloop:
+    inc ecx
+    mov edx, 0
+    mov esi, 10
+    idiv esi   ; divide eax by this
+    add edx, 48 ; convert remainder to ascii digit
+    push edx   ; push on stack to be echoed later (for correct order)
+                ; what's clever about pushing the ascii digits onto the
+                ; stack is that we can use the stack memory as our
+                ; buffer by using the stack pointer at esp in our
+                ; syscall to print the digits
+    cmp eax, 0 ; are we done?
+    jnz .divideloop
+    mov esi, ecx ; printing... we use ecx for syscall, so count down with esi
+.printloop:
+    ; arguably, I should be making use of EMIT...but this is all temporary
+    ; anyway so I'm just going to inline the syscall to print the digits...
+    dec esi
+    mov ebx, 1              ; syscall param 1: stdout
+    mov ecx, esp            ; syscall param 2: address to print
+    mov edx, 1              ; syscall param 3: length in bytes to print
+    mov eax, __NR_write     ; syscall 'write'
+    int 0x80                ; request syscall!
+    pop eax      ; next digit
+    cmp esi, 0   ; are we done?
+    jnz .printloop
+    pop esi      ;restore our word address pointer
+    ret
+
     ; ==============================
     ; stack manipulation words
 
@@ -785,7 +824,54 @@ _EMIT:
     NEXT
 
 
+    ; ==============================
+    ; math words!
 
+
+	DEFCODE "1+",2,,INCR
+	inc dword [esp]       ; increment top of stack
+	NEXT
+
+	DEFCODE "1-",2,,DECR
+	dec dword [esp]       ; decrement top of stack
+	NEXT
+
+	DEFCODE "4+",2,,INCR4
+	add dword [esp], 4    ; add 4 to top of stack
+	NEXT
+
+	DEFCODE "4-",2,,DECR4
+	sub dword [esp], 4   ; subtract 4 from top of stack
+	NEXT
+
+	DEFCODE "+",1,,ADD
+	pop dword [eax]       ; get top of stack
+	add [esp], eax  ; and add it to next word on stack
+	NEXT
+
+	DEFCODE "-",1,,SUB
+	pop eax         ; get top of stack
+	sub [esp], eax  ; and subtract it from next word on stack
+	NEXT
+
+	DEFCODE "*",1,,MUL
+	pop eax
+	pop ebx
+	imul eax, ebx
+	push eax        ; ignore overflow
+	NEXT
+
+	;In this FORTH, only /MOD is primitive.  Later we will define the / and MOD words in
+	;terms of the primitive /MOD.  The design of the i386 assembly instruction idiv which
+	;leaves both quotient and remainder makes this the obvious choice.
+	DEFCODE "/MOD",4,,DIVMOD
+	xor edx, edx
+	pop ebx
+	pop eax
+	idiv ebx
+	push edx        ; push remainder
+	push eax        ; push quotient
+	NEXT
 
 
 
