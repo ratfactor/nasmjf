@@ -1,8 +1,21 @@
 = NASM port of jonesFORTH
 
-NOTE: This is very much an early work in progress! I'm working on it in public.
-The progress has been slow but steady. The program likely segfaults at any given
-commit.
+NOTE: This is a work in progress! I'm working on it in public.  The program
+likely segfaults at any given commit.
+
+Update: This port can now print Hello World!
+
+----
+: h1 111 108 108 101 72 EMIT EMIT EMIT EMIT EMIT ;
+: h2 100 108 114 111 87 EMIT EMIT EMIT EMIT EMIT ;
+: s 32 EMIT ;
+h1 s h2
+Hello World
+----
+
+Sure, it's character-by-character via EMIT, but it still counts.
+And speaking of counting, I've got a bunch of stack manipulation
+and math words working. It's moving fast now!
 
 Check out the log text files. They're my rambling learning-in-public and
 thinking "out loud" way of describing what I'm up to. The latest log will probably
