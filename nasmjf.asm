@@ -845,7 +845,7 @@ _DOT:
 	NEXT
 
 	DEFCODE "+",1,,ADD
-	pop dword [eax]       ; get top of stack
+	pop eax       ; get top of stack
 	add [esp], eax  ; and add it to next word on stack
 	NEXT
 
@@ -873,6 +873,112 @@ _DOT:
 	push eax        ; push quotient
 	NEXT
 
+
+    ; ==============================
+    ; comparison words!
+
+        ;  top two values are equal?
+        DEFCODE "=",1,,EQU
+        pop eax
+        pop ebx
+        cmp eax, ebx
+        sete al          ; sete sets operand (al) to 1 if cmp was true
+        movzx eax, al    ; movzx moves the value, then fills in zeros
+        push eax         ; push answer on stack
+        NEXT
+
+        DEFCODE "<>",2,,NEQU	; top two words are not equal?
+        pop eax
+        pop ebx
+        cmp eax, ebx
+        setne al
+        movzx eax, al
+        push eax
+        NEXT
+
+        DEFCODE "<",1,,LT
+        pop eax
+        pop ebx
+        cmp ebx, eax
+        setl al
+        movzx eax, al
+        push eax
+        NEXT
+
+        DEFCODE ">",1,,GT
+        pop eax
+        pop ebx
+        cmp ebx, eax
+        setg al
+        movzx eax, al
+        push eax
+        NEXT
+
+        DEFCODE "<=",2,,LE
+        pop eax
+        pop ebx
+        cmp ebx, eax
+        setle al
+        movzx eax, al
+        push eax
+        NEXT
+
+        DEFCODE ">=",2,,GE
+        pop eax
+        pop ebx
+        cmp ebx, eax
+        setge al
+        movzx eax, al
+        push eax
+        NEXT
+
+        DEFCODE "0=",2,,ZEQU	; top of stack equals 0?
+        pop eax
+        test eax,eax
+        setz al
+        movzx eax, al
+        push eax
+        NEXT
+
+        DEFCODE "0<>",3,,ZNEQU	; top of stack not 0?
+        pop eax
+        test eax,eax
+        setnz al
+        movzx eax, al
+        push eax
+        NEXT
+
+        DEFCODE "0<",2,,ZLT	; comparisons with 0
+        pop eax
+        test eax,eax
+        setl al
+        movzx eax, al
+        push eax
+        NEXT
+
+        DEFCODE "0>",2,,ZGT
+        pop eax
+        test eax,eax
+        setg al
+        movzx eax, al
+        push eax
+        NEXT
+
+        DEFCODE "0<=",3,,ZLE
+        pop eax
+        test eax,eax
+        setle al
+        movzx eax,al
+        push eax
+        NEXT
+
+        DEFCODE "0>=",3,,ZGE
+        pop eax
+        test eax,eax
+        setge al
+        movzx eax,al
+        push eax
+        NEXT
 
 
     DEFCODE "CHAR",4,,CHAR

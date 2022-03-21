@@ -194,3 +194,5 @@ Program received signal SIGSEGV, Segmentation fault.
     Yup, that works!
 
     Looks like I'll find the bug in "+" next. :-)
+
+    Yup, fixed that with the next set of words. See next log.
