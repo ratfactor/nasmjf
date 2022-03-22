@@ -63,6 +63,52 @@
 7 0<= .   0
 
     I left in that fat-fingered '..' to break up the monotony.
+    Everyone enjoys a good PARSE ERROR, no?
     But you can see how these work. The comparisons expect
     either 1 or 2 numbers on the stack. They leave a 1 for
     true and 0 for false.
+
+    Next come some bitwise operators:
+
+1 2 AND .  0
+
+    01 AND 10 = 00
+
+3 2 AND .  2
+
+    11 AND 10 = 10
+
+1 2 OR .   3
+
+    01 OR 10 = 11
+
+1 2 XOR .  3
+
+    01 XOR 10 = 11
+
+3 2 OR .   3
+
+    11 OR 10 = 11
+
+3 2 XOR .  1
+
+    11 XOR 10 = 01
+
+1 INVERT . 65534
+
+    00000000000001 NOT = 111111111111110
+
+0 INVERT .
+Program received signal SIGSEGV, Segmentation fault.
+_FIND.test_word () at nasmjf.asm:532
+532         mov al, [edx+4]           ; al = flags+length field
+10 INVERT .
+65525
+100 INVERT .
+Program received signal SIGSEGV, Segmentation fault.
+_FIND.test_word () at nasmjf.asm:532
+532         mov al, [edx+4]           ; al = flags+length field
+
+    Hmmmm... I've run into this before - certain numeric
+    literals sometimes crash the interpreter with a segfault
+    in FIND.test_word. I need to step through that eventually.

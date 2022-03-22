@@ -980,6 +980,28 @@ _DOT:
         push eax
         NEXT
 
+    ; ==============================
+    ; bitwise logic words
+
+	DEFCODE "AND",3,,AND
+	pop eax
+	and [esp],eax
+	NEXT
+
+	DEFCODE "OR",2,,OR
+	pop eax
+	or [esp],eax
+	NEXT
+
+	DEFCODE "XOR",3,,XOR
+	pop eax
+	xor [esp], eax
+	NEXT
+
+	DEFCODE "INVERT",6,,INVERT
+	not word [esp]
+	NEXT
+
 
     DEFCODE "CHAR",4,,CHAR
     call _WORD              ; Returns %ecx = length, %edi = pointer to word.
