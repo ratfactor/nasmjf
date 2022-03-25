@@ -112,3 +112,35 @@ _FIND.test_word () at nasmjf.asm:532
     Hmmmm... I've run into this before - certain numeric
     literals sometimes crash the interpreter with a segfault
     in FIND.test_word. I need to step through that eventually.
+
+    Aha! Got it. Really silly problem as it turns out.
+    I had defined the word_buffer memory space in the
+    .data segment like so:
+
+        word_buffer:
+            db 32 ; 32 bytes of buffer for word names
+
+    But that didn't do what the comment said - instead, it
+    put the single value 32 in a single byte of space!
+
+    So whenever I entered *anything* in the interpreter
+    longer than a handful of characters (not just one because
+    of 4 byte alignment), I was overwriting whatever came
+    next in memory, which happened to be word definitions!
+
+    The correct definition:
+
+        word_buffer:
+            db 32 dup (0) ; 32 bytes of buffer for word names
+
+    actually initializes the memory with 32 bytes all
+    containing the value 0.
+
+1111 .
+1111
+11111111 .
+11111111
+
+    That would have always crashed before. Now it's fixed.
+
+    Looks like next up are some low-level memory primitives.

@@ -369,7 +369,7 @@ _WORD:
 
 SECTION .data
 word_buffer:
-    db 32 ; 32 bytes of buffer for word names
+    db 32 dup (0) ; 32 bytes of buffer for word names
 
 SECTION .text
 
