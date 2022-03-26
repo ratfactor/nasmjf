@@ -650,7 +650,7 @@ _FIND:
     NEXT
 
     DEFCODE "EXIT",4,,EXIT
-    POPRSP esi    	    ; pop return stack into esi
+    POPRSP esi            ; pop return stack into esi
     NEXT
 
     ; COLON (:) creates the new word header and starts compile mode
@@ -827,181 +827,182 @@ _DOT:
     ; ==============================
     ; math words!
 
+    DEFCODE "1+",2,,INCR
+    inc dword [esp]       ; increment top of stack
+    NEXT
 
-	DEFCODE "1+",2,,INCR
-	inc dword [esp]       ; increment top of stack
-	NEXT
+    DEFCODE "1-",2,,DECR
+    dec dword [esp]       ; decrement top of stack
+    NEXT
 
-	DEFCODE "1-",2,,DECR
-	dec dword [esp]       ; decrement top of stack
-	NEXT
+    DEFCODE "4+",2,,INCR4
+    add dword [esp], 4    ; add 4 to top of stack
+    NEXT
 
-	DEFCODE "4+",2,,INCR4
-	add dword [esp], 4    ; add 4 to top of stack
-	NEXT
+    DEFCODE "4-",2,,DECR4
+    sub dword [esp], 4   ; subtract 4 from top of stack
+    NEXT
 
-	DEFCODE "4-",2,,DECR4
-	sub dword [esp], 4   ; subtract 4 from top of stack
-	NEXT
+    DEFCODE "+",1,,ADD
+    pop eax       ; get top of stack
+    add [esp], eax  ; and add it to next word on stack
+    NEXT
 
-	DEFCODE "+",1,,ADD
-	pop eax       ; get top of stack
-	add [esp], eax  ; and add it to next word on stack
-	NEXT
+    DEFCODE "-",1,,SUB
+    pop eax         ; get top of stack
+    sub [esp], eax  ; and subtract it from next word on stack
+    NEXT
 
-	DEFCODE "-",1,,SUB
-	pop eax         ; get top of stack
-	sub [esp], eax  ; and subtract it from next word on stack
-	NEXT
+    DEFCODE "*",1,,MUL
+    pop eax
+    pop ebx
+    imul eax, ebx
+    push eax        ; ignore overflow
+    NEXT
 
-	DEFCODE "*",1,,MUL
-	pop eax
-	pop ebx
-	imul eax, ebx
-	push eax        ; ignore overflow
-	NEXT
-
-	;In this FORTH, only /MOD is primitive.  Later we will define the / and MOD words in
-	;terms of the primitive /MOD.  The design of the i386 assembly instruction idiv which
-	;leaves both quotient and remainder makes this the obvious choice.
-	DEFCODE "/MOD",4,,DIVMOD
-	xor edx, edx
-	pop ebx
-	pop eax
-	idiv ebx
-	push edx        ; push remainder
-	push eax        ; push quotient
-	NEXT
+    ; In JonesFORTH, /MOD is defined in asm. / and MOD will
+    ; be defined later in FORTH. This is because i386 idiv
+    ; gives us both the quotient and remainder.
+    DEFCODE "/MOD",4,,DIVMOD
+    xor edx, edx
+    pop ebx
+    pop eax
+    idiv ebx
+    push edx        ; push remainder
+    push eax        ; push quotient
+    NEXT
 
 
     ; ==============================
     ; comparison words!
 
-        ;  top two values are equal?
-        DEFCODE "=",1,,EQU
-        pop eax
-        pop ebx
-        cmp eax, ebx
-        sete al          ; sete sets operand (al) to 1 if cmp was true
-        movzx eax, al    ; movzx moves the value, then fills in zeros
-        push eax         ; push answer on stack
-        NEXT
-
-        DEFCODE "<>",2,,NEQU	; top two words are not equal?
-        pop eax
-        pop ebx
-        cmp eax, ebx
-        setne al
-        movzx eax, al
-        push eax
-        NEXT
-
-        DEFCODE "<",1,,LT
-        pop eax
-        pop ebx
-        cmp ebx, eax
-        setl al
-        movzx eax, al
-        push eax
-        NEXT
-
-        DEFCODE ">",1,,GT
-        pop eax
-        pop ebx
-        cmp ebx, eax
-        setg al
-        movzx eax, al
-        push eax
-        NEXT
-
-        DEFCODE "<=",2,,LE
-        pop eax
-        pop ebx
-        cmp ebx, eax
-        setle al
-        movzx eax, al
-        push eax
-        NEXT
-
-        DEFCODE ">=",2,,GE
-        pop eax
-        pop ebx
-        cmp ebx, eax
-        setge al
-        movzx eax, al
-        push eax
-        NEXT
-
-        DEFCODE "0=",2,,ZEQU	; top of stack equals 0?
-        pop eax
-        test eax,eax
-        setz al
-        movzx eax, al
-        push eax
-        NEXT
-
-        DEFCODE "0<>",3,,ZNEQU	; top of stack not 0?
-        pop eax
-        test eax,eax
-        setnz al
-        movzx eax, al
-        push eax
-        NEXT
-
-        DEFCODE "0<",2,,ZLT	; comparisons with 0
-        pop eax
-        test eax,eax
-        setl al
-        movzx eax, al
-        push eax
-        NEXT
-
-        DEFCODE "0>",2,,ZGT
-        pop eax
-        test eax,eax
-        setg al
-        movzx eax, al
-        push eax
-        NEXT
-
-        DEFCODE "0<=",3,,ZLE
-        pop eax
-        test eax,eax
-        setle al
-        movzx eax,al
-        push eax
-        NEXT
-
-        DEFCODE "0>=",3,,ZGE
-        pop eax
-        test eax,eax
-        setge al
-        movzx eax,al
-        push eax
-        NEXT
+    DEFCODE "=",1,,EQU      ;  top two values are equal?
+    pop eax
+    pop ebx
+    cmp eax, ebx
+    sete al          ; sete sets operand (al) to 1 if cmp was true
+    movzx eax, al    ; movzx moves the value, then fills in zeros
+    push eax         ; push answer on stack
+    NEXT
+ 
+    DEFCODE "<>",2,,NEQU    ; top two words are not equal?
+    pop eax
+    pop ebx
+    cmp eax, ebx
+    setne al
+    movzx eax, al
+    push eax
+    NEXT
+ 
+    DEFCODE "<",1,,LT
+    pop eax
+    pop ebx
+    cmp ebx, eax
+    setl al
+    movzx eax, al
+    push eax
+    NEXT
+ 
+    DEFCODE ">",1,,GT
+    pop eax
+    pop ebx
+    cmp ebx, eax
+    setg al
+    movzx eax, al
+    push eax
+    NEXT
+ 
+    DEFCODE "<=",2,,LE
+    pop eax
+    pop ebx
+    cmp ebx, eax
+    setle al
+    movzx eax, al
+    push eax
+    NEXT
+ 
+    DEFCODE ">=",2,,GE
+    pop eax
+    pop ebx
+    cmp ebx, eax
+    setge al
+    movzx eax, al
+    push eax
+    NEXT
+ 
+    DEFCODE "0=",2,,ZEQU    ; top of stack equals 0?
+    pop eax
+    test eax,eax
+    setz al
+    movzx eax, al
+    push eax
+    NEXT
+ 
+    DEFCODE "0<>",3,,ZNEQU    ; top of stack not 0?
+    pop eax
+    test eax,eax
+    setnz al
+    movzx eax, al
+    push eax
+    NEXT
+ 
+    DEFCODE "0<",2,,ZLT    ; comparisons with 0
+    pop eax
+    test eax,eax
+    setl al
+    movzx eax, al
+    push eax
+    NEXT
+ 
+    DEFCODE "0>",2,,ZGT
+    pop eax
+    test eax,eax
+    setg al
+    movzx eax, al
+    push eax
+    NEXT
+ 
+    DEFCODE "0<=",3,,ZLE
+    pop eax
+    test eax,eax
+    setle al
+    movzx eax,al
+    push eax
+    NEXT
+ 
+    DEFCODE "0>=",3,,ZGE
+    pop eax
+    test eax,eax
+    setge al
+    movzx eax,al
+    push eax
+    NEXT
 
     ; ==============================
     ; bitwise logic words
 
-	DEFCODE "AND",3,,AND
-	pop eax
-	and [esp],eax
-	NEXT
+    DEFCODE "AND",3,,AND
+    pop eax
+    and [esp],eax
+    NEXT
 
-	DEFCODE "OR",2,,OR
-	pop eax
-	or [esp],eax
-	NEXT
+    DEFCODE "OR",2,,OR
+    pop eax
+    or [esp],eax
+    NEXT
 
-	DEFCODE "XOR",3,,XOR
-	pop eax
-	xor [esp], eax
-	NEXT
+    DEFCODE "XOR",3,,XOR
+    pop eax
+    xor [esp], eax
+    NEXT
 
-	DEFCODE "INVERT",6,,INVERT
-	not word [esp]
-	NEXT
+    DEFCODE "INVERT",6,,INVERT
+    not word [esp]
+    NEXT
 
+
+    ; ===========================================
+    ; misc words needed for interpreter/compiler
 
     DEFCODE "CHAR",4,,CHAR
     call _WORD              ; Returns %ecx = length, %edi = pointer to word.
