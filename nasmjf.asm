@@ -628,20 +628,11 @@ _FIND:
     ; Just two more "code" word definitions before we can define
     ; COLON out of pure words.
     ;
-    ; FETCH (@) grabs a value from an address on the stack and
-    ; puts that value on the stack.
-    ;
     ; HIDDEN toggles the hidden flag for the dictionary entry
     ; at the address on the stack
     ;
     ; EXIT pops the return stack value into esi - this is the
     ; reverse of what DOCOL does.
-
-    DEFCODE "@",1,,FETCH
-    pop ebx                 ; address to fetch
-    mov eax, [ebx]          ; fetch it
-    push eax                ; push value onto stack
-    NEXT
 
     DEFCODE "HIDDEN",6,,HIDDEN
     pop edi                 ; Dictionary entry, first byte is link
@@ -998,6 +989,69 @@ _DOT:
 
     DEFCODE "INVERT",6,,INVERT
     not word [esp]
+    NEXT
+
+
+    ; ==============================
+    ; primitive memory words
+
+    DEFCODE "!",1,,STORE
+    pop ebx           ; address to store at
+    pop eax           ; data to store there
+    mov [ebx], eax
+    NEXT
+
+    DEFCODE "@",1,,FETCH
+    pop ebx                 ; address to fetch
+    mov eax, [ebx]          ; fetch it
+    push eax                ; push value onto stack
+    NEXT
+
+    DEFCODE "+!",2,,ADDSTORE
+    pop ebx                ; address
+    pop eax                ; the amount to add
+    add [ebx], eax
+    NEXT
+
+    DEFCODE "-!",2,,SUBSTORE
+    pop ebx                ; address
+    pop eax                ; the amount to subtract
+    sub [ebx], eax
+    NEXT
+
+    ; Primitive byte-oriented operations are like the above 32-bit
+    ; operations, but work on 8 bits. x86 has instructions for this
+    ; so we can define these.
+
+    DEFCODE "C!",2,,STOREBYTE
+    pop ebx                ; address to store at
+    pop eax                ; data to store there
+    mov [ebx], al
+    NEXT
+
+    DEFCODE "C@",2,,FETCHBYTE
+    pop ebx               ; address to fetch
+    xor eax, eax          ; clear the register
+    mov al, [ebx]         ; grab a byte
+    push eax
+    NEXT
+
+    DEFCODE "C@C!",4,,CCOPY ; byte copy
+    mov ebx, [esp+4]      ; source address
+    mov al, [ebx]         ; source byte
+    pop edi               ; destination address
+    stosb                 ; copy to destination
+    push edi              ; increment destination address
+    inc byte [esp+4]      ; increment source address
+    NEXT
+
+    DEFCODE "CMOVE",5,,CMOVE ; copy n bytes
+    mov edx, esi          ; preserve esi
+    pop ecx               ; length
+    pop edi               ; destination address
+    pop esi               ; source address
+    rep movsb             ; copy source to destination
+    mov esi, edx          ; restore esi
     NEXT
 
 

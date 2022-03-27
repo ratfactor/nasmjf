@@ -1,0 +1,89 @@
+    Now I've ported the primitive memory words.
+    Actually, I'd already done FETCH ('@') because it was
+    required by INTERPRET.
+
+            !  store value at address
+            @  get value from address
+           +!  add value to value at address
+           -!  subtract value from value at address
+           C!  store byte
+           C@  fetch byte
+         C@C!  copy 1 byte  from source addr to dest addr
+        CMOVE  copy n bytes from source addr to dest addr
+
+    So far, it's been easy to figure out how to test new
+    words as I add them. But these memory primitives aren't
+    so obvious because how do I know where I can read/write
+    memory?
+
+    The VARIABLE word which creates new variables won't be
+    defined until the second half of JonesFORTH runs...and
+    that's defined in FORTH, not asm!
+
+    Thankfully, we have some existing variables which should
+    be helpful:
+
+        STATE   compiling (1) or executing (0)
+        LATEST  Points to the most recently defined word
+        HERE    Points to the next free byte of memory
+        S0      The address of the top of the parameter stack
+        BASE    The current base for printing and reading numbers
+
+    So, on with the testing, starting with storing and fetching
+    from HERE.
+
+HERE .
+134537216
+5 HERE !
+HERE @ .
+5
+HERE @ HERE @ . .
+55
+
+    Now the in-place addition and subtraction.
+
+1 HERE +! HERE @ .
+6
+2 HERE -! HERE @ .
+4
+
+    For the byte-wise operators, I'll set the
+    native-sized 4 bytes to all 1s, then it'll be
+    clear if we're just storing/fetching the lower
+    byte.
+
+0 INVERT HERE ! HERE @ .
+65535
+0 HERE C! HERE @ .
+65280
+HERE C@ .
+0
+
+    Now to copy a byte from memory to another
+    memory location, let's get an interesting
+    byte - the 'L' from 'LATEST' in the name
+    portion of the word definition:
+
+LATEST .
+134522384
+LATEST 5 + C@ EMIT
+L
+LATEST 5 + HERE C@C!
+HERE @ .
+65356
+HERE C@ EMIT
+L
+
+    That's neat, but we can do one better by
+    copying the entire string. I'll reformat
+    the responses to make it even clearer:
+
+LATEST 5 + HERE 6 CMOVE
+HERE 0 + @ EMIT L
+HERE 1 + @ EMIT A
+HERE 2 + @ EMIT T
+HERE 3 + @ EMIT E
+HERE 4 + @ EMIT S
+HERE 5 + @ EMIT T
+
+    Neat!
