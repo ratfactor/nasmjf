@@ -87,3 +87,55 @@ HERE 4 + @ EMIT S
 HERE 5 + @ EMIT T
 
     Neat!
+
+    Next are return stack manipulation words. Forth
+    is surely unique in inviting programmers to monkey
+    about with the return stack for storing temporary
+    values or perform other clever tricks.
+    
+        >R     move value from param stack to return stack
+        R>     move value from return stack to param stack
+        RSP@   get the actual address RSP points to
+        RSP!   set the address RSP points to
+        RDROP  move RSP to "pop" value and throw it away
+
+    According to Leo Brodie's Starting Forth, storing stuff
+    on the return stack should be safe to use when defining
+    a word. Outside of that, it'll likely cause a crash.
+
+: store-add >R + R> ;
+1 2 3 store-add . .
+33
+
+    That works. Stows the 3 from the param stack on the return
+    stack, adds the 1 and 2 from the param stack and puts the
+    resulting 3 onto the param stack, restores the 3 from the
+    return stack back to the param stack.
+
+    We can look at the address of the return stack pointer (RSP).
+    Which is currently equal to the top of the return stack
+    memory address, stored in constant R0:
+
+RSP@ .
+134530680
+R0 .
+134530680
+
+    This isn't a very good demonstration of setting RSP since
+    I'm setting it to the existing value:
+
+RSP@ RSP!
+
+    Now let's see if we can "drop" the value on the return
+    stack:
+
+RSP@ @ .
+0
+5 >R
+RSP@ @ .
+5
+RDROP
+RSP@ @ .
+0
+
+    Yup!

@@ -222,11 +222,6 @@ _start:
 ; ============================================================
 ; Words in ASM
 
-        ; return stack pointer
-    DEFCODE "RSP!",4,,RSPSTORE
-    pop ebp
-    NEXT
-
     ; BRANCH is the simplest possible way to loop - it always
     ; moves the word pointer by the amount in the next value
     ; pointed to by esi! It's helpful to see how LIT works because
@@ -1052,6 +1047,32 @@ _DOT:
     pop esi               ; source address
     rep movsb             ; copy source to destination
     mov esi, edx          ; restore esi
+    NEXT
+
+    ; ===============================
+    ; Return stack maniputation words
+    ; ebp is the return stack pointer (RSP)
+
+    DEFCODE ">R",2,,TOR  ; move value from param stack to return stack
+    pop eax
+    PUSHRSP eax
+    NEXT
+
+    DEFCODE "R>",2,,FROMR ; move value from return stack to param stack
+    POPRSP eax
+    push eax
+    NEXT
+
+    DEFCODE "RSP@",4,,RSPFETCH ; get the actual address RSP points to
+    push ebp
+    NEXT
+
+    DEFCODE "RSP!",4,,RSPSTORE ; set the address RSP points to
+    pop ebp
+    NEXT
+
+    DEFCODE "RDROP",5,,RDROP ; move RSP to "pop" value and throw it away
+    add ebp, 4
     NEXT
 
 
