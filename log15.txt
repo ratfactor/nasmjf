@@ -139,3 +139,47 @@ RSP@ @ .
 0
 
     Yup!
+
+    Like the return stack, we can mess directly with the param
+    stack with two words:
+
+        DSP@ - fetch address of param ("data") stack pointer
+        DSP! - set address of param stack pointer
+
+    Let's view the DSP address:
+
+DSP@ .
+3221223824
+
+    And it should go lower when we push a value because it
+    grows "upward":
+
+55
+DSP@ .
+
+    We can view the value on the stack by fetching it from
+    the address:
+
+3221223820
+DSP@ @ .
+55
+
+    Let's put another value on the stack. DSP will get lower.
+    And we can view the new value:
+
+77
+DSP@ .
+3221223816
+DSP@ @ .
+77
+
+    Let's try setting DSP "back" to a higher address to point
+    to and view the previous value again:
+
+DSP@ 4 + DSP!
+DSP@ .
+3221223820
+DSP@ @ .
+55
+
+    Neat!

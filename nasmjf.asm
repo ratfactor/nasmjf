@@ -1076,6 +1076,20 @@ _DOT:
     NEXT
 
 
+    ; ===============================
+    ; Param stack maniputation words
+    ; esp is the param ("data") stack pointer (DSP)
+
+    DEFCODE "DSP@",4,,DSPFETCH
+    mov eax, esp
+    push eax
+    NEXT
+
+    DEFCODE "DSP!",4,,DSPSTORE
+    pop esp
+    NEXT
+
+
     ; ===========================================
     ; misc words needed for interpreter/compiler
 
