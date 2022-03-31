@@ -1093,6 +1093,18 @@ _DOT:
     ; ===========================================
     ; misc words needed for interpreter/compiler
 
+    DEFCODE "IMMEDIATE",9,F_IMMED,IMMEDIATE ; makes latest word immediate
+    mov edi, var_LATEST       ; addr of LATEST word.
+    add edi, 4                ; Point to name/flags byte.
+    xor byte [edi], F_IMMED   ; Toggle the IMMED bit.
+    NEXT
+
+    DEFWORD "HIDE",4,,HIDE
+    dd FWORD        ; Get the word (after HIDE).
+    dd FIND        ; Look up in the dictionary.
+    dd HIDDEN      ; Set F_HIDDEN flag.
+    dd EXIT        ; Return.
+
     DEFCODE "CHAR",4,,CHAR
     call _WORD              ; Returns %ecx = length, %edi = pointer to word.
     xor eax,eax

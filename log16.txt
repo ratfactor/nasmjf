@@ -1,0 +1,89 @@
+    Two new words add to the word "compiler" abilities of
+    the interpreter:
+
+        IMMEDIATE  sets the latest word to be "immediate"
+        HIDE       takes the next "word" of input, looks it up
+                   in the dictionary, and then sets that word
+                   to be hidden (via the word HIDDEN)
+
+    HIDE seems the easiest to test, so we'll start with that:
+
+: emit2 EMIT EMIT ;
+66 65 emit2
+AB
+HIDE emit2
+66 65 emit2
+PARSE ERROR: 66 65 emit2
+
+    That worked: we get the parse error because emit2 has been
+    hidden and is no longer found in the dictionary.
+
+    The HIDDEN word used by HIDE actually toggles the hidden state,
+    so can we call HIDE again to unhide the word?
+
+HIDE emit2
+
+Program received signal SIGSEGV, Segmentation fault.
+code_HIDDEN () at nasmjf.asm:635
+635         xor [edi], word F_HIDDEN  ; Toggle the HIDDEN bit in place.
+
+    Oh, ha ha, no, of course not. It's hidden, so HIDE can't
+    find it (and since there's absolutely no error checking,
+    we crash trying to toggle the bit in some random memory
+    location).
+
+    I guess we could use LATEST and HIDDEN to manually toggle
+    it back, but I can't be bothered tonight.
+
+    Onward to IMMEDIATE.
+
+: ab 66 65 EMIT EMIT ;
+IMMEDIATE
+: foo 1000 . ;
+foo
+foo
+55 EMIT
+;
+
+^C
+Program received signal SIGINT, Interrupt.
+_WORD.skip_non_words () at nasmjf.asm:339
+339         call _KEY               ; get next key, returned in %eax
+
+   Something went wrong. I had to Ctrl+C to end the
+   program. It was merrily taking input, but nothing
+   would execute, not even Ctrl+D to end the input
+   and exit.
+
+   Let's try that again and verify we're toggling the
+   right word...
+
+(gdb) r
+Starting program: /home/dave/nasmjf/nasmjf
+(gdb) c
+Continuing.
+LATEST 4 + C@ .
+6
+LATEST 5 + C@ EMIT
+L
+
+    Okay, just sanity checking LATEST - it points to
+    a word with 6 letters in the name and starts with
+    the letter "L" (it's LATEST itself).
+
+    I'll define my 'ab' word again, try it out (it should
+    print the letters "AB"), and check LATEST again...
+
+: ab 66 65 EMIT EMIT ;
+ab
+AB
+LATEST 4 + C@ .
+2
+LATEST 5 + C@ EMIT
+a
+IMMEDIATE
+ab
+
+    Drat! Then it locked up again. So IMMEDIATE is
+    definitely not working right.
+
