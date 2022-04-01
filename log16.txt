@@ -87,3 +87,85 @@ ab
     Drat! Then it locked up again. So IMMEDIATE is
     definitely not working right.
 
+    Next night: okay, let's see what's going on...
+
+(gdb) break code_IMMEDIATE
+Breakpoint 2 at 0x80494ec: file nasmjf.asm, line 1097.
+(gdb) c
+Continuing.
+: ab 66 65 EMIT EMIT ;
+ab
+AB
+IMMEDIATE
+
+Breakpoint 2, code_IMMEDIATE () at nasmjf.asm:1097
+(gdb) p/x (int)var_LATEST
+$1 = 0x804e000
+(gdb) x/10c (int)var_LATEST
+0x804e000:   ...  2 '\002' 97 'a'  98 'b' ...
+
+    So that's right - LATEST points at word 'ab'...
+
+1098        add edi, 4                ; Point to name/flags byte.
+1099        xor byte [edi], F_IMMED   ; Toggle the IMMED bit.
+(gdb) p/x $edi
+$2 = 0x804a6b0
+
+    That's a dead giveaway, the address in register
+    edi should now be LATEST + 4.  But it's actually
+    the _address_ of LATEST + 4!
+
+(gdb) p/x (int)var_LATEST
+$3 = 0x804e000
+
+    It still takes me a bit before I see it...
+
+(gdb) disass 1099
+No function contains specified address.
+(gdb) disass code_IMMEDIATE
+Dump of assembler code for function code_IMMEDIATE:
+   0x080494ec <+0>:     mov    edi,0x804a6ac   <--- should be PTR
+   0x080494f1 <+5>:     add    edi,0x4
+=> 0x080494f4 <+8>:     xor    BYTE PTR [edi],0x80
+   0x080494f7 <+11>:    lods   eax,DWORD PTR ds:[esi]
+   0x080494f8 <+12>:    jmp    DWORD PTR [eax]
+End of assembler dump.
+
+    I finally see it.
+
+    I have
+
+        mov edi, var_LATEST
+
+    where I should have
+
+        mov edi, [var_LATEST]
+
+    (so of course it wasn't working after that. LATEST was
+    incremented and no longer pointed at word. All further
+    interpretation would fail to match!)
+
+    With that fixed, it should work...
+
+(gdb) load
+(gdb) r
+Starting program: /home/dave/nasmjf/nasmjf
+: ab 66 65 EMIT EMIT ;
+ab
+AB
+IMMEDIATE
+
+    So now 'ab' should execute as soon as the interpreter
+    sees it, even in compile mode:
+
+: five 5 . ab ;
+AB
+five
+5
+
+    Yeah! The call to 'ab' executed at "compile time" rather
+    than "run time" for the new word 'five'. Using this, we
+    could add new language features to FORTH in FORTH.
+
+
+

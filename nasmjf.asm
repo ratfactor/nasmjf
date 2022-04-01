@@ -1094,7 +1094,7 @@ _DOT:
     ; misc words needed for interpreter/compiler
 
     DEFCODE "IMMEDIATE",9,F_IMMED,IMMEDIATE ; makes latest word immediate
-    mov edi, var_LATEST       ; addr of LATEST word.
+    mov edi, [var_LATEST]     ; addr of LATEST word.
     add edi, 4                ; Point to name/flags byte.
     xor byte [edi], F_IMMED   ; Toggle the IMMED bit.
     NEXT
