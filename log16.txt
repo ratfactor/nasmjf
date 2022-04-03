@@ -167,5 +167,123 @@ five
     than "run time" for the new word 'five'. Using this, we
     could add new language features to FORTH in FORTH.
 
+    Next, the TICK (single quote ') word gets the address
+    of a word (supplied after the ' so it doesn't execute.
+    this is the same trick LIT uses).
+
+    This implementation can only work at compile time because
+    the interpreter needs to turn the word that follows as
+    a 4-byte address for ' to be able to read and then hope
+    over that value. Just for fun, let's try to print the
+    address of the EMIT word outside of the compile state:
+
+' EMIT .
+
+Program received signal SIGSEGV, Segmentation fault.
+
+    See?
+
+    Now let's use it the same way, but in a new compiled word:
+
+: addrofemit ' EMIT . ;
+addrofemit
+134521260
+
+    Looks like it worked, but is that address correct?
+
+(gdb) info addr EMIT
+Symbol "EMIT" is at 0x804a1ac in a file compiled without debugging.
+(gdb) p/d 0x804a1ac
+$1 = 134521260
+
+    Yup!
+
+    Then the next night, I've got a really exciting one,
+    BRANCH0.
+
+    But first, I'm trying to figure out how to even test
+    BRANCH, let alone its conditional big brother!
+
+    I even worked it out on paper the next morning, and I'm
+    still not seeing why this doesn't work:
+
+: foo 65 EMIT BRANCH -12 ;
+foo
+A
+Program received signal SIGSEGV, Segmentation fault.
+code_BRANCH () at nasmjf.asm:27
+27          lodsd     ; NEXT: Load from memory into eax, inc esi to point to next word.
+
+    By my calculations, esi starts off pointing at the
+    offset number's instruction (-12), then we should be
+    branching back to "65":
+
+          0    "-12"
+         -4    BRANCH
+         -8    EMIT
+        -12    "65"
+
+    And I've had a bummer of a time trying to step through
+    it by breaking on BRANCH because that word is used
+    (correctly) as part of the interpreter loop.
+
+    So I'm going to copy BRANCH with the silly name BRUNCH
+    and see why it's not correct!
+
+        DEFCODE "BRUNCH",6,,BRUNCH
+        add esi, [esi]
+        NEXT
+
+    Should be pretty simple, right? It's just a one-liner!
+
+(gdb) break code_BRUNCH
+(gdb) c
+Continuing.
+: foo 65 EMIT BRUNCH -12 ;
+foo
+A
+Breakpoint 2, code_BRUNCH () at nasmjf.asm:251
+251         add esi, [esi]          ; add the offset to the instruction pointer
+
+    Okay, now let's thoroughly examine this. We're going to
+    add the negative number stored where esi points to FROM
+    esi. Where does esi point?
+
+(gdb) p/x $esi
+$3 = 0x804e01c
+(gdb) x/x $esi
+0x804e01c:      0x0804a0f0
+(gdb) info sym *$esi
+LIT in section .data of /home/dave/nasmjf/nasmjf
+(gdb) x/b $esi+4
+0x804e020:      -12 '\364'
+
+    Yup, we can see that esi points to the address of LIT
+    followed by the value -12. As expected.
+
+(gdb) s
+27          lodsd     ; NEXT: Load from memory into eax, inc esi to point to next word.
+
+    Now that's run, where does esi point now?
+
+(gdb) info sym *$esi
+Cannot access memory at address 0x1009810c
+(gdb) p/x $esi
+$4 = 0x1009810c
+
+    What? That address isn't right. It should be 12 less
+    than before, not...oh wait...
+
+(gdb) disass code_BRUNCH
+Dump of assembler code for function code_BRUNCH:
+   0x08049054 <+0>:     add    esi,DWORD PTR [esi]
+=> 0x08049056 <+2>:     lods   eax,DWORD PTR ds:[esi]
+   0x08049057 <+3>:     jmp    DWORD PTR [eax]
+End of assembler dump.
+
+    Now I see it. We subtracted the address of LIT, not
+    the -12 that follows it. No wonder I got a segfault.
+
+    So how do I get the value -12 right after BRANCH?
 
 

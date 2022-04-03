@@ -222,6 +222,18 @@ _start:
 ; ============================================================
 ; Words in ASM
 
+    ; TICK (or single quote: ') gets the address of the word
+    ; that matches the next word of input text. Uses the same
+    ; lodsd trick as LIT to grab the next word of input without
+    ; executing it. Only words while in compile state. (: ... ;)
+    ; It's not an immediate word, so it executes at run time,
+    ; which is why we end up with the address of the next word
+    ; (which was matched at compile time) to put on the stack!
+    DEFCODE "'",1,,TICK
+    lodsd                   ; Moves value at esi to eax, esi++
+    push eax                ; Push address on the stack
+    NEXT
+
     ; BRANCH is the simplest possible way to loop - it always
     ; moves the word pointer by the amount in the next value
     ; pointed to by esi! It's helpful to see how LIT works because
@@ -229,8 +241,23 @@ _start:
     ; word address, it's the amount to add to esi.
     ; To branch/loop back to a previous instruction, you provide
     ; a negative offset.
+    ; esi currently points at the offset number.
+    ; Example: BRANCH -4 is an infinite loop, calling BRANCH
     DEFCODE "BRANCH",6,,BRANCH
     add esi, [esi]          ; add the offset to the instruction pointer
+    NEXT
+
+    DEFCODE "BRUNCH",6,,BRUNCH
+    add esi, [esi]          ; add the offset to the instruction pointer
+    NEXT
+
+    ; 0BRANCH is the same thing, but with a condition: it only
+    ; jumps if the top of the stack is zero.
+    DEFCODE "0BRANCH",7,,ZBRANCH
+    pop eax
+    test eax, eax           ; top of stack is zero?
+    jz code_BRANCH          ; if so, jump back to BRANCH
+    lodsd                   ; or skip the offset (esi to eax, esi++)
     NEXT
 
         ;
@@ -496,7 +523,7 @@ _NUMBER:
         ; the next word. But in this case, it's the literal value
         ; to push onto the stack.
     DEFCODE "LIT",3,,LIT
-    lodsd                   ; loads the value at esi into eax, incements esi
+    lodsd                   ; loads the value at esi into eax, increments esi
     push eax                ; push the literal number on to stack
     NEXT
 
