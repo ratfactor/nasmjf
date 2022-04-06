@@ -286,4 +286,44 @@ End of assembler dump.
 
     So how do I get the value -12 right after BRANCH?
 
+    Next night: okay, so I reviewed the ported words
+    so far and I'm pretty sure COMMA (,) fits the bill.
+    It "compiles" the value on the stack to the current
+    position...
 
+: foo 65 EMIT BRUNCH -12 , ;
+foo
+A
+Breakpoint 3, code_BRUNCH () at nasmjf.asm:251
+251         add esi, [esi]          ; add the offset to the instruction pointer
+(gdb) x/x **$esi
+0x8049228 <code_LIT>:   0xffad50ad
+
+    ...no, dang it, that doesn't work either, and for
+    the same reason. Sure, ',' will store whatever's on
+    the stack, but we're still getting LIT -12 compiled
+    first when we're compiling.
+
+    So I really don't see any easy way to test BRANCH,
+    let along 0BRANCH with an arbitrary snippet of code
+    at this point. :-(
+
+    Next evening: I've also just ported LITSTRING and TELL,
+    two more primitives that appear hard to test because
+    I'm not sure how to compile literal values into memory
+    yet.
+
+    So, this would be a pretty big let-down way to end a
+    log file but...
+
+    IT APPEARS THAT I'VE PORTED ALL OF THE ASSEMBLY!
+
+    Yeah, so starting with the next log, I'm going to
+    start feeding jonesforth.f, which is the second half
+    of the language implementation implemented in itself,
+    into my port and fix the inevitable bugs.
+
+    It's been about six months of slowly chipping away
+    at this port nearly every single evening. I can
+    barely believe this stage has arrived. This is so
+    cool. 8-)

@@ -242,12 +242,7 @@ _start:
     ; To branch/loop back to a previous instruction, you provide
     ; a negative offset.
     ; esi currently points at the offset number.
-    ; Example: BRANCH -4 is an infinite loop, calling BRANCH
     DEFCODE "BRANCH",6,,BRANCH
-    add esi, [esi]          ; add the offset to the instruction pointer
-    NEXT
-
-    DEFCODE "BRUNCH",6,,BRUNCH
     add esi, [esi]          ; add the offset to the instruction pointer
     NEXT
 
@@ -259,6 +254,29 @@ _start:
     jz code_BRANCH          ; if so, jump back to BRANCH
     lodsd                   ; or skip the offset (esi to eax, esi++)
     NEXT
+
+    ; Another primitive - this one is used to implement the string
+    ; words in Forth (." and S"). I'll just port it for now, then
+    ; test it later.
+    DEFCODE "LITSTRING",9,,LITSTRING
+    lodsd                   ; get the length of the string
+    push esi                ; push the address of the start of the string
+    push eax                ; push it on the stack
+    add esi, eax            ; skip past the string
+    add esi, 3              ; but round up to next 4 byte boundary
+    and esi, ~3
+    NEXT
+
+    ; Same deal here - another primitive. This one uses a Linux syscall
+    ; to print a string.
+    DEFCODE "TELL",4,,TELL
+    mov ebx, 1        ; 1st param: stdout
+    pop edx        ; 3rd param: length of string
+    pop ecx        ; 2nd param: address of string
+    mov eax,__NR_write      ; write syscall
+    int 80h
+    NEXT
+
 
         ;
         ; * * *   The Forth interpreter!   * * *
