@@ -53,10 +53,14 @@ var_S0:       resb 4
 data_segment: resb 1024 
 buffer:       resb buffer_size
 emit_scratch: resb 4 ; note: JF had this in .data as .space 1
+line_count:   resb 4
 
 SECTION .data
 
 cold_start: dd QUIT  ; we need a way to indirectly address the first word
+;jfsource:   db "jonesforth/jonesforth.f", 0h ; file name to open
+jfsource: db "test.f" , 0h
+%assign __lines_of_jf_to_read 6
 
 SECTION .text
 
@@ -107,6 +111,21 @@ _start:
     mov ebx, eax              ; reserve memory by setting this new break addr
     mov eax, __NR_brk         ; syscall brk again
     int 0x80
+
+    ; Process jonesforth.f upon startup.
+    ;   data: jfsource    - file path for jonesforth.f
+    ; This is another snippet 
+    ; open jonesforth.f
+    mov ecx, 0                ; read only flag for open
+    mov ebx, jfsource
+    mov eax, __NR_open
+    mov dword [line_count], 0 ; start line at 0, this makes less-than come out right
+    int 80h                   ; fd now in eax
+
+    mov [read_from_fd], eax   ; store fd and tell KEY to read from this
+
+    ; TODO close file when done
+
 
     ; Now "prime the pump" for the NEXT macro by sticking an indirect
     ; address in esi. NEXT will jump to whatever's stored there.
@@ -404,7 +423,7 @@ _WORD:
 .skip_comment: ; skip \ comment to end of current line
     call _KEY
     cmp al,`\n`             ; eol? (escapes okay in backtick strings in nasm)
-        jne .skip_comment
+    jne .skip_comment
     jmp .skip_non_words
 
 SECTION .data
@@ -427,12 +446,31 @@ _KEY:
     jge .get_more_input
     xor eax, eax
     mov al, [ebx]           ; get next key from input buffer
+
+    ; book
+    ; see if we need to check line_count (is -1 if not)
+    mov ecx, [line_count]
+    cmp ecx, 0
+    jl .continue_with_key
+    cmp al, `\n`            ; is newline?
+    jne .continue_with_key
+    inc ecx                 ; yup! increment line count and see if we're done
+    mov [line_count], ecx
+    cmp ecx, __lines_of_jf_to_read ; Read this many lines of jonesforth.f source...
+    jl  .continue_with_key
+    mov dword [line_count], -1    ; setting forever
+    mov dword [read_from_fd], 0   ; change the read-from fd to STDIN
+    mov dword [bufftop], buffer          ; force it to "run out" of buffered input
+    ;jmp _KEY                ; start getting chars from stdin
+
+.continue_with_key:
     inc ebx
     mov [currkey], ebx        ; increment currkey
     ret
 
-.get_more_input:  ; Use read(2) to fetch more input from stdin.
-    xor ebx,ebx             ; 1st param: stdin
+.get_more_input:  ; Use read(2) to fetch more input
+    mov ebx, [read_from_fd] ; 1st param: file to read from (could be stdin)
+    ;xor ebx,ebx             ; 1st param: stdin
     mov ecx,buffer          ; 2nd param: buffer
     mov [currkey],ecx
     mov edx,buffer_size     ; 3rd param: max length
@@ -1260,13 +1298,14 @@ _DOT:
     DEFVAR "LATEST",6,,LATEST,name_LATEST ; points to last word defined...which will just
                                           ; happen to be self. We'll see if this works.
 
-
+; TODO: instead of these silly 0,0,0,0 placeholders, use dd (double)
 
 SECTION    .data
     align 4
 currkey: db 0,0,0,0  ; Current place in input buffer (next character to read).
 bufftop: db 0,0,0,0  ; Last valid data in input buffer + 1.
 interpret_is_lit: db 0,0,0,0 ; 1 means "reading a literal"
+read_from_fd: db 0,0,0,0 ; 0=STDIN, etc.
 errmsg: db "PARSE ERROR: "
 errmsgend:
 errmsgnl: db `\n`

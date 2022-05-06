@@ -305,7 +305,7 @@ Breakpoint 3, code_BRUNCH () at nasmjf.asm:251
     first when we're compiling.
 
     So I really don't see any easy way to test BRANCH,
-    let along 0BRANCH with an arbitrary snippet of code
+    let alone 0BRANCH with an arbitrary snippet of code
     at this point. :-(
 
     Next evening: I've also just ported LITSTRING and TELL,

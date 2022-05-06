@@ -1,0 +1,143 @@
+    Now we come to a bit of a challenge. The method of
+    starting JonesFORTH with the rest of the language
+    implementation *and* still allowing user input on
+    STDIN is quite clever:
+
+        cat jonesforth.f - | ./jonesforth 
+
+    That is, have cat read the FORTH source file and then
+    whatever is supplied on STDIN (using the standard
+    '-' parameter to indicate STDIN in place of a file)
+    and pipe the lot to the jonesforth executable.
+
+    Unfortunately, it crashes my port:
+
+eeepc:~/nasmjf$ cat jonesforth/jonesforth.f - | ./nasmjf
+
+Segmentation fault
+
+    So we have a problem.
+
+    And this is turning out to be hard to test.
+
+    Well, it seems there are a couple routes I could take
+    here:
+
+    1. Hand-type the contents of jonesforth.f and see what
+       causes the crash. I'm okay with the effort - I plan
+       to go through that source line-by-line to understand
+       it anyway. But the problem is: how do I incrementally
+       save what I've typed so far?
+
+    2. Use divide-and-conquer to find out how much of
+       'jonesforth.f' I can run before we get a crash. That
+       would probably work - but it's going to be an annoying
+       process and I'll be working blind.
+
+    3. Figure out how to read in 'jonesforth.f' on startup
+       as part of the executable. This will allow debugging
+       in GDB to continue (no doubt I could figure out some
+       arcane way of redirecting or piping that to STDIN
+       while in a GDB session or attach to the process or
+       something...but I'm not enthusiastic about figuring
+       that out. I'd rather write code.)
+
+    As you can likely guess, I'm going with Option 3. I'm going
+    to have the nasmjf executabe read 'jonesforth.f' upon
+    startup. The plan is something like this:
+
+    A. Open the file using syscalls
+    B. Read into a fixed-size reserved buffer
+    C. Keep track of line numbers for reference?
+    D. Feed the source into the interpreter somehow
+    E. Now I can debug the crash?
+    F. When EOF reached, close the file and start accepting
+       interpreter input from STDIN again.
+
+    The only challenging part, it seems to me, is D: feeding the
+    file into the interpreter. Words like KEY are currently
+    hard-coded to read from STDIN, right? So maybe I need a global
+    switch to read from my line buffer instead?
+
+    Let's get started!
+
+    For A, I've got this near the top:
+
+        SECTION .bss
+        line_buffer:  resb 1024 ; for storing source lines from file
+
+    Then
+
+        SECTION .data
+        jfsource:   db "jonesforth/jonesforth.f", 0h
+
+    And then reading the file - another snippet adapted from
+    asmtutor.com!
+
+
+Breakpoint 1, _start () at nasmjf.asm:82
+82          cld    ; Clear the "direction flag" which means the string instructions (such
+      ...
+118         mov ecx, 0                ; read only flag for open
+119         mov ebx, jfsource
+120         mov eax, __NR_open
+121         int 80h                   ; fd now in eax
+124         mov edx, 1024              ; amt to read
+125         mov ecx, line_buffer       ; address of .bss reserved space
+126         mov ebx, eax               ; fd from pushed eax above
+127         mov eax, __NR_read
+128         int 80h
+(gdb) x/s (int)&line_buffer
+0x804db30 <line_buffer>:        "\\ -*- text -*-\n\\\tA sometimes minimal FORTH
+compiler and tutorial for Linux / i386 systems. -*- asm -*-\n\\\tBy Richard W.M.
+Jones <rich@annexia.org> http://annexia.org/forth\n\\\tThis is PUBLIC DOMAIN"...
+
+    Awesome! Of course it works. It's a trivial operation, even
+    in assembly.
+
+    Anyway, now to figure out how to feed the source into the
+    interpreter.
+
+    Weeks have passed. Progress has gone at a snail's pace and
+    I've often fallen asleep with barely a single assembly
+    instruction written.
+
+    Nevertheless, I think I'm getting close.
+
+    TIME PASSES...
+
+    Okay, a month later and I've got it reading a test.f file
+    to make sure I can read in N lines of a Forth source file
+    when the interpreter starts and then hand input back to
+    the keyboard.
+
+    Here's the entirety of test.f:
+
+        1 .
+        2 .
+        3 .
+        4 .
+        5 .
+        6 .
+        7 .
+        8 .
+
+    So it's just Forth for printing the line number on each line
+    so I can see if it correctly stops after six lines.
+
+        jfsource: db "test.f" , 0h
+        %assign __lines_of_jf_to_read 6
+
+    What does it look like when it runs? Let's find out:
+
+123456
+
+    Yay! It reads and executes six lines, then waits for user input.
+    Perfect!
+
+    This took about a month because of a ton of stupid bugs, off-by-
+    one errors, and that sort of thing. But mostly because I was
+    really tired and kept falling asleep.
+
+    Anyway, now I can read N lines of jonesforth.f and test it out
+    a bit at a time!
