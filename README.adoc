@@ -3,7 +3,12 @@
 NOTE: This is a work in progress! I'm working on it in public.  The program
 likely segfaults at any given commit.
 
-Update: This port can now print Hello World!
+Update: The assembly portion of this interpreter port is pretty much "done".
+It still needs cleanup and I'm pretty sure there's still a bug. However, I
+am now working my way through the FORTH source (jonesforth.f) of the
+implementation and that should work out the rest of the bugs.
+
+Previous Update: This port can now print Hello World!
 
 ----
 : h1 111 108 108 101 72 EMIT EMIT EMIT EMIT EMIT ;

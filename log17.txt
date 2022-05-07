@@ -141,3 +141,31 @@ Jones <rich@annexia.org> http://annexia.org/forth\n\\\tThis is PUBLIC DOMAIN"...
 
     Anyway, now I can read N lines of jonesforth.f and test it out
     a bit at a time!
+
+    Next night: okay, here goes nothing:
+
+
+        jfsource:   db "jonesforth/jonesforth.f", 0h
+        %assign __lines_of_jf_to_read 52
+
+    This reads to line 52 of jonesforth.f, which is a bunch of comments
+    and a definiton of / and MOD:
+
+
+        : / /MOD SWAP DROP ;
+        : MOD /MOD DROP ;
+
+10 5 / .
+2
+10 5 MOD .
+0
+10 3 / .
+3
+10 3 MOD .
+1
+
+    Wow, that actually works! So now I can start logging my
+    progress as I load and test more of the FORTH portion of
+    the JonesFORTH implementation.
+
+

@@ -58,9 +58,8 @@ line_count:   resb 4
 SECTION .data
 
 cold_start: dd QUIT  ; we need a way to indirectly address the first word
-;jfsource:   db "jonesforth/jonesforth.f", 0h ; file name to open
-jfsource: db "test.f" , 0h
-%assign __lines_of_jf_to_read 6
+jfsource:   db "jonesforth/jonesforth.f", 0h ; LOADJF path
+%assign __lines_of_jf_to_read 52             ; LOADJF lines (tempoary)
 
 SECTION .text
 
@@ -116,15 +115,13 @@ _start:
     ;   data: jfsource    - file path for jonesforth.f
     ; This is another snippet 
     ; open jonesforth.f
-    mov ecx, 0                ; read only flag for open
-    mov ebx, jfsource
-    mov eax, __NR_open
-    mov dword [line_count], 0 ; start line at 0, this makes less-than come out right
-    int 80h                   ; fd now in eax
+    mov ecx, 0                ; LOADJF read only flag for open
+    mov ebx, jfsource         ; LOADJF path for open
+    mov eax, __NR_open        ; LOADJF open syscall
+    mov dword [line_count], 0 ; LOADJF start line at 0, this makes test come out right
+    int 80h                   ; LOADJF fd now in eax
+    mov [read_from_fd], eax   ; LOADJF store fd and tell KEY to read from this
 
-    mov [read_from_fd], eax   ; store fd and tell KEY to read from this
-
-    ; TODO close file when done
 
 
     ; Now "prime the pump" for the NEXT macro by sticking an indirect
@@ -445,23 +442,22 @@ _KEY:
     cmp ebx, [bufftop]
     jge .get_more_input
     xor eax, eax
-    mov al, [ebx]           ; get next key from input buffer
+    mov al, [ebx]               ; get next key from input buffer
 
-    ; book
-    ; see if we need to check line_count (is -1 if not)
-    mov ecx, [line_count]
-    cmp ecx, 0
-    jl .continue_with_key
-    cmp al, `\n`            ; is newline?
-    jne .continue_with_key
-    inc ecx                 ; yup! increment line count and see if we're done
-    mov [line_count], ecx
-    cmp ecx, __lines_of_jf_to_read ; Read this many lines of jonesforth.f source...
-    jl  .continue_with_key
-    mov dword [line_count], -1    ; setting forever
-    mov dword [read_from_fd], 0   ; change the read-from fd to STDIN
-    mov dword [bufftop], buffer          ; force it to "run out" of buffered input
-    ;jmp _KEY                ; start getting chars from stdin
+    mov ecx, [line_count]       ; LOADJF need to check line_count?
+    cmp ecx, 0                  ; LOADJF -1 means we don't
+    jl .continue_with_key       ; LOADJF don't need to check (done with JF)
+    cmp al, `\n`                ; LOADJF is newline?
+    jne .continue_with_key      ; LOADJF nope!
+    inc ecx                     ; LOADJF yup! increment line count and see if we're done
+    mov [line_count], ecx       ; LOADJF
+    cmp ecx, __lines_of_jf_to_read ; LOADJF Read this many lines of jonesforth.f source...
+    jl  .continue_with_key      ; LOADJF
+    mov dword [line_count], -1  ; LOADJF setting to done (see test above)
+    ; TODO: close source file   ; LOADJF
+    mov dword [read_from_fd], 0 ; LOADJF change the read-from fd to STDIN
+    mov dword [bufftop], buffer ; LOADJF force it to "run out" of buffered input
+    ;jmp _KEY                   ; LOADJF start getting chars from stdin
 
 .continue_with_key:
     inc ebx
