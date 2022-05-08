@@ -29,6 +29,21 @@ give an idea of what I'm currently doing or what I've most recently completed.
 I also wrote an article about my delightful process with this project:
 http://ratfactor.com/assembly-nights
 
+== Load JonesFORTH source on start
+
+The implementation of JonesFORTH is in two parts: an assembly language
+"boostrap" and additional word definitions written in FORTH.
+
+This NASM port of the assembly portion has an important change: it contains
+a hard-coded path to the `jonesforth.f` FORTH source file and reads it
+automatically when the interpreter starts. This is to make starting and
+debugging the system easier and more convenient.
+
+If you wish to disable or simply examine this change, search for lines with
+comments containing the string `LOADJF`. Removing the lines should cleanly
+remove the additional feature. At least, that's the theory. You may also want
+to change the path to the source file. Feel free to do so.
+
 == GNU Debugger
 
 I've made heavy use of the GNU Debugger to fix mistakes, understand what
