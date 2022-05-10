@@ -40,5 +40,5 @@ bind h hardcopy -h
 screen bash -c "cd nasmjf && ./r db"
 #
 # This window contains the source and handy references.
-screen bash -c "cd nasmjf && vim nasmjf.asm jonesforth/jonesforth.S nasmdoc.txt"
+screen bash -c "cd nasmjf && vim nasmjf.asm jonesforth/jonesforth.f"
 

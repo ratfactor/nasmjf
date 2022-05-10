@@ -168,4 +168,33 @@ Jones <rich@annexia.org> http://annexia.org/forth\n\\\tThis is PUBLIC DOMAIN"...
     progress as I load and test more of the FORTH portion of
     the JonesFORTH implementation.
 
+    Now I'm loading to line 70, which contains definitions for
+    some more handy primitives.
 
+    I'll test them out now:
+
+3 5 . SPACE .
+5 3
+
+3 5 . CR .
+5
+3
+
+3 NEGATE .
+4294967293
+
+TRUE .
+1
+FALSE .
+0
+TRUE NOT .
+0
+FALSE NOT .
+1
+
+    Heh, I'll just trust at the negaative value is correct for
+    now.
+
+    So, this is great. I'll just keep working my way down
+    jonesforth.f until I've tested everything and/or reproduced
+    the crash I was experiencing before.
