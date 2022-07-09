@@ -59,7 +59,7 @@ SECTION .data
 
 cold_start: dd QUIT  ; we need a way to indirectly address the first word
 jfsource:   db "jonesforth/jonesforth.f", 0h ; LOADJF path
-%assign __lines_of_jf_to_read 70             ; LOADJF lines (tempoary)
+%assign __lines_of_jf_to_read 97             ; LOADJF lines (tempoary)
 
 SECTION .text
 

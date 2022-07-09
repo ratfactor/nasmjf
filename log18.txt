@@ -1,0 +1,140 @@
+    I'm back! It's been over a month and I had to stop just
+    when it was getting exiciting. :-(
+
+    Anyway, I can now read any amount of jonesforth.f upon
+    starting the interpreter. So it's easy to test chunks
+    of Forth implementation by just incrementing the temporary
+    constant I've put in the assembly:
+        
+        __lines_of_jf_to_read
+
+    But that doesn't mean it will be *easy*. The rest of
+    the FORTH implementation is implemented in FORTH, so
+    plenty of mind-bending lies ahead.
+
+    Setting the lines to read to 97, we now have these
+    10 new definitions to try out:
+
+        LITERAL ':' ';' '(' ')' '"' 'A' '0' '-' '.'
+
+    Yes, the quotes are part of the word names (it is 'A' not A).
+
+    First, LITERAL, sounds a lot like LIT, right?
+
+    Here's the entire definition:
+
+        \ LITERAL takes whatever is on the stack and compiles LIT <foo>
+        : LITERAL IMMEDIATE
+                ' LIT ,		\ compile LIT
+                ,		\ compile the literal itself (from the stack)
+                ;
+
+    I don't know ahout you, but I'm already starting to get a bit
+    rusty after my hitatus. So I'm going to need to remind myself
+    what these separate words mean.
+
+    IMMEDIATE   Means LITERAL will always be executed as soon
+                as it's encountered even if we're in compile mode.
+
+    ' (TICK)    Matches the next "word" of input with a compiled
+                word and returns its address.
+
+    LIT         Pushes the next value onto the stack.
+
+    , (COMMA)   Puts the currently-pushed value from the stack to
+                the position pointed to by HERE.
+
+    None of ' LIT , are immediate mode words, so they're being compiled
+    into LITERAL.
+
+    All together, this means that we
+
+        * get the address of the next word
+        * push that address on the stack
+        * write the address at HERE ("compile it")
+        * write the next address from the stack ("compile it")
+
+    Well, I can't make heads or tails of that functionality on its
+    own, but the next words make use of it. Jones thoroughly breaks
+    the first of them down in a big comment:
+
+        \ Now we can use [ and ] to insert literals which are calculated at
+        \ compile time.  (Recall that [ and ] are the FORTH words which switch
+        \ into and out of immediate mode.) Within definitions, use [ ... ]
+        \ LITERAL anywhere that '...' is a constant expression which you would
+        \ rather only compute once (at compile time, rather than calculating it
+        \ each time your word runs).
+        : ':'
+                [		\ go into immediate mode (temporarily)
+                CHAR :		\ push the number 58 (ASCII code of colon) on the parameter stack
+                ]		\ go back to compile mode
+                LITERAL		\ compile LIT 58 as the definition of ':' word
+        ;
+
+    Followed by the rest of the definitions:
+
+        \ A few more character constants defined the same way as above.
+        : ';' [ CHAR ; ] LITERAL ;
+        : '(' [ CHAR ( ] LITERAL ;
+        : ')' [ CHAR ) ] LITERAL ;
+        : '"' [ CHAR " ] LITERAL ;
+        : 'A' [ CHAR A ] LITERAL ;
+        : '0' [ CHAR 0 ] LITERAL ;
+        : '-' [ CHAR - ] LITERAL ;
+        : '.' [ CHAR . ] LITERAL ;
+
+    These are all crazy to look at coming from "normal" programming
+    languages because of the single quotes in the word names!
+
+    Anyway, taken all together, we get:
+
+        * Compile a word called ':'
+        * Switch to immediate mode
+        * CHAR takes the next character and puts on stack
+        * : is next character
+        * Switch back to compile mode, : is on stack
+        * LITERAL:
+            * gets the address of the next word
+            * push that address on the stack
+            * write the address at HERE ("compile it")
+            * write the next address from the stack ("compile it")
+
+    Or, more simply: we put the ASCII value of the character on the
+    stack, and LITERAL compiles the LIT word followed by the character
+    from the stack. Thus, we end up with a compiled word that will
+    perform a LIT + character (puts that character on the stack).
+
+    Okay, got it. Let's see it in action with one of the defined words:
+
+'A' .
+65
+'A' EMIT
+A
+':' EMIT
+:
+
+    Now I'll try making my own word that uses LITERAL:
+
+: Z [ CHAR z LITERAL ] ;
+Z EMIT
+z
+
+    And I can compile that into another word:
+
+: emitz Z EMIT ;
+emitz
+z
+
+    Yay, I finally understand this! I kept trying to "get it" late
+    at night and it just wasn't clicking. What made this so hard
+    to understand has nothing to do with the stack, it's the
+    temporal nature of the compile-time vs run-time execution of
+    these low-level compiler words in FORTH.
+
+    Some of it runs "now" and some of it runs "later". For certain
+    definitions of now and later. Thankfully, it's all much
+    more comprehensible on a weekend morning.
+
+    Well, this log has now spanned two months. So even though I
+    didn't cover a TON of ground here, I'm gonna start a new log
+    for the next installment. :-)
