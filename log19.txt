@@ -1,0 +1,75 @@
+    The mind-destroying temporal manipulation operators
+    continue now with a new word called
+
+        [COMPILE] 
+
+    Which compiles the next "word" of input even if it
+    would otherwise have been immediate.
+
+    This allows you to be your own father's uncle or
+    something like that.
+
+    And, of course, [COMPILE] itself is IMMEDIATE. Let's
+    take a look at the whole definition with some Jones
+    comments:
+        
+        : [COMPILE] IMMEDIATE
+                WORD		\ get the next word
+                FIND		\ find it in the dictionary
+                >CFA		\ get its codeword
+                ,		\ and compile that
+        ;
+
+    I have to keep reminding myself that even though
+    [COMPILE] is IMMEDIATE, the WORD word's next word isn't
+    FIND, it's whatever follows the *use* of [COMPILE], which
+    is probably during compilation. I think we have exceeded
+    the limitations of the English language now. Throw away
+    your dictionaries, clocks, and family trees. Where we're
+    going, we won't be needing those anymore. Set phasers for
+    "make love to your own grandma" and prepare to jump to
+    lightspeed toward Planet FORTH.
+
+    I'm tired.
+
+    Next night: Okay, I figured out how to test [COMPILE].
+    I'll make a new IMMEDIATE word called foo that emits
+    'z' when it runs.
+
+: foo IMMEDIATE [ CHAR z ] LITERAL EMIT ;
+foo
+z
+
+: bar 'A' EMIT foo 'A' EMIT ;
+z
+
+bar
+AA
+
+    Yup, foo runs when bar is compiled, not when bar runs.
+
+    Then I'll see if I can use [COMPILE] to call foo at
+    "runtime" instead:
+
+: bar2 'A' EMIT [COMPILE] foo 'A' EMIT ;
+bar2
+AzA
+
+    Yes! Nailed it.
+
+
+    Next, RECURSE...
+
+
+
+        \ RECURSE makes a recursive call to the current word that is being compiled.
+        \
+        \ Normally while a word is being compiled, it is marked HIDDEN so that references to the
+        \ same word within are calls to the previous definition of the word.  However we still have
+        \ access to the word which we are currently compiling through the LATEST pointer so we
+        \ can use that to compile a recursive call.
+        : RECURSE IMMEDIATE
+                LATEST @	\ LATEST points to the word being compiled at the moment
+                >CFA		\ get the codeword
+                ,		\ compile it
+        ;
