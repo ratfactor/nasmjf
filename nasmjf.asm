@@ -604,7 +604,7 @@ _FIND:
     ; this won't pick the word (the length will appear to be wrong).
     xor eax,eax
     mov al, [edx+4]           ; al = flags+length field
-    and al,(F_HIDDEN|F_LENMASK) ; al = name length
+    and al,(F_HIDDEN|F_LENMASK) ; al = length, but including hidden bit!
     cmp cl,al        ; Length is the same?
     jne .prev_word          ; nope, try prev
 
@@ -804,6 +804,28 @@ _DOT:
     jnz .printloop
     pop esi      ;restore our word address pointer
     ret
+
+    ; PRINTWORD
+    ; Super killer debugging word! Prints the name of the word pointed to
+    ; on the stack. Example: LATEST PRINTWORD
+    DEFCODE "PRINTWORD",9,,PRINTWORD
+    pop eax
+    call _PRINTWORD
+    NEXT
+_PRINTWORD:
+    mov edx,eax             ; stack had addr of header of dictionary word
+    xor eax,eax             ; zero out all of eax
+    mov al, [edx+4]         ; al = flags+length field
+    and al, F_LENMASK       ; al = just length of name
+    add edx,5               ; move pointer to name string
+;    push ecx               ; Save the length
+;    push edi               ; Save the address (repe cmpsb will move this pointer)
+;    lea esi,[edx+5]        ; Dictionary string we are checking against.
+    mov ebx,1               ; 1st param: stdout
+    mov ecx,edx             ; 2nd param: address to print
+    mov edx,eax             ; 3rd param: length of string
+    mov eax,__NR_write      ; write syscall
+    int 80h
 
     ; ==============================
     ; stack manipulation words

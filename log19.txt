@@ -57,19 +57,112 @@ AzA
 
     Yes! Nailed it.
 
+    The next word defined in jonesforth.f is RECURSE.
 
-    Next, RECURSE...
+    Based on what's come before, you'd think this was a total
+    mind-wrecking word. But RECURSE just lets you call a word
+    from itself. Just like it sounds.
+
+    The only reason you can't _normally_ call a word from itself
+    is that a word is usually marked as hidden until its done
+    being compiled. (Which allows you to call the previous definition.)
+
+    And that should make this real easy to test:
+
+: foo 1 . ;
+foo
+1
+: foo 2 . foo ;
+foo
+21
+: foo 3 . RECURSE ;
+foo
+321
+
+    Hmmm... that's not what I expected it to do. The second foo calls
+    the first, as expected. But the third should have called itself,
+    not the second, right?
+
+    I could debug this in GDB, but quite frankly, that's gonna suck.
+    The level of abstraction is all wrong. I really need some proper
+    introspective debugging in the interpreter itself. And I feel like
+    FORTH is uniquely suited to introspection.
+
+    At a minimum, I'd like a list of words in the dictionary with
+    addresses. I'd like to see what HERE points to. And the contents
+    of the stack.
+
+    I'm pretty sure I've got all the primitives I need to get those
+    things. I just have to solve the puzzle.
+
+    Then maybe I'll be able to figure out why RECURSE isn't doing
+    what I think it should do.
+
+    First: printing the pointers HERE and LATEST sounds pretty easy.
+
+HERE .
+134537812
+LATEST .
+134537776
+
+    I presume those decimal addresses are correct.
+
+    Two nights later: Now I've added a PRINTWORD word in assembly that
+    takes the address of a word (its header) and prints its name.
+
+LATEST PRINTWORD
+RECURSE
+LATEST @ PRINTWORD
+[COMPILE]
+LATEST @ @ PRINTWORD
+'.'
+
+    The above example is printing the last three words in the dictionary
+    by using @ to fetch the address  of the previous word from the linked
+    list.
+
+    I'd like to see some additional info about words like how long their
+    definitions are and whether they're immediate and/or hidden. 
+
+HERE LATEST - .
+36
+
+    That tells me that RECURSE is 36 bytes long, I guess.
+
+    The length + flags (it's hidden and immediate) should be here:
+
+LATEST 4 + C@ .
+135
+
+    Hmmmm... that's 10000111 in binary, so looks like the length
+    portion is 111 (7). That checks out, 'RECURSE' is seven letters
+    long. (See bc session below for the binary conversion, etc.)
+
+    And it should be immediate. Does that correspond with 10000111?
+    Let's see:
+
+        %assign F_IMMED 0x80
+        %assign F_HIDDEN 0x20
+
+    And a little bc session to confirm some stuff:
+
+        eeepc:~$ bc
+        bc 1.32.1
+        Adapted from https://github.com/gavinhoward/bc
+        Original code (c) 2018 Gavin D. Howard and contributors
+        obase=2
+        135
+        10000111
+        7
+        111
+        ibase=16
+        80
+        10000000
+        20
+        100000
+
+    Yup! RECURSE is immediate. If it were hidden, it would have had
+    10100111 in the length+flags.
 
 
-
-        \ RECURSE makes a recursive call to the current word that is being compiled.
-        \
-        \ Normally while a word is being compiled, it is marked HIDDEN so that references to the
-        \ same word within are calls to the previous definition of the word.  However we still have
-        \ access to the word which we are currently compiling through the LATEST pointer so we
-        \ can use that to compile a recursive call.
-        : RECURSE IMMEDIATE
-                LATEST @	\ LATEST points to the word being compiled at the moment
-                >CFA		\ get the codeword
-                ,		\ compile it
-        ;
+next: have i figured out how to do enough to debug the use of RECURSE?
