@@ -164,5 +164,21 @@ LATEST 4 + C@ .
     Yup! RECURSE is immediate. If it were hidden, it would have had
     10100111 in the length+flags.
 
+    Next night. Well, the above was neat and a good refresher for me
+    but I messed around with it quite a bit trying to debug RECURSE
+    without solving. However, during all of that messing around, I
+    did figure out what's going wrong. Here's Jones's RECURSE:
 
-next: have i figured out how to do enough to debug the use of RECURSE?
+        : RECURSE IMMEDIATE
+                LATEST @	\ LATEST points to the word being compiled at the moment
+                >CFA		\ get the codeword
+                ,		\ compile it
+        ;
+
+    The problem is that LATEST already points to the word being compiled.
+    LATEST @ fetches the _value_ at that address. Well, that's a pointer
+    to the _previous_ word. Which completely explains the behavior I've
+    seen.
+
+    I'm baffled.
+    This is the exact same bug in the interpreter...
