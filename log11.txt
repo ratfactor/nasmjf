@@ -5,6 +5,15 @@
     one being compiled, not the previous one in the
     linked list (dictionary).
 
+        !!!!!!!!!!!!!!!!!!!! Update !!!!!!!!!!!!!!!!!!!!
+        ! In log19.txt, I realize that my variable     !
+        ! handling is wrong. Variables should leave    !
+        ! their addresses on the stack, not their      !
+        ! values! We need FETCH to get the value from  !
+        ! the address!                                 !
+        !!!!!!!!!!!!!!!!!!!! Update !!!!!!!!!!!!!!!!!!!!
+
+
     So unless I discover otherwise, I've changed it
     from
 

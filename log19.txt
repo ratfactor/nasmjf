@@ -3,8 +3,8 @@
 
         [COMPILE] 
 
-    Which compiles the next "word" of input even if it
-    would otherwise have been immediate.
+    Which compiles the next "word" of input even if it would
+    otherwise have been immediate.
 
     This allows you to be your own father's uncle or
     something like that.
@@ -22,19 +22,19 @@
 
     I have to keep reminding myself that even though
     [COMPILE] is IMMEDIATE, the WORD word's next word isn't
-    FIND, it's whatever follows the *use* of [COMPILE], which
-    is probably during compilation. I think we have exceeded
-    the limitations of the English language now. Throw away
-    your dictionaries, clocks, and family trees. Where we're
-    going, we won't be needing those anymore. Set phasers for
-    "make love to your own grandma" and prepare to jump to
-    lightspeed toward Planet FORTH.
+    FIND, it's whatever follows the *use* of [COMPILE],
+    which is probably during compilation. I think we have
+    exceeded the limitations of the English language now.
+    Throw away your dictionaries, clocks, and family trees.
+    Where we're going, we won't be needing those anymore.
+    Set phasers for "make love to your own grandma" and
+    prepare to jump to lightspeed toward Planet FORTH.
 
     I'm tired.
 
     Next night: Okay, I figured out how to test [COMPILE].
-    I'll make a new IMMEDIATE word called foo that emits
-    'z' when it runs.
+    I'll make a new IMMEDIATE word called foo that emits 'z'
+    when it runs.
 
 : foo IMMEDIATE [ CHAR z ] LITERAL EMIT ;
 foo
@@ -59,13 +59,14 @@ AzA
 
     The next word defined in jonesforth.f is RECURSE.
 
-    Based on what's come before, you'd think this was a total
-    mind-wrecking word. But RECURSE just lets you call a word
-    from itself. Just like it sounds.
+    Based on what's come before, you'd think this was a
+    total mind-wrecking word. But RECURSE just lets you call
+    a word from itself. Just like it sounds.
 
-    The only reason you can't _normally_ call a word from itself
-    is that a word is usually marked as hidden until its done
-    being compiled. (Which allows you to call the previous definition.)
+    The only reason you can't _normally_ call a word from
+    itself is that a word is usually marked as hidden until
+    its done being compiled. (Which allows you to call the
+    previous definition.)
 
     And that should make this real easy to test:
 
@@ -79,26 +80,30 @@ foo
 foo
 321
 
-    Hmmm... that's not what I expected it to do. The second foo calls
-    the first, as expected. But the third should have called itself,
-    not the second, right?
+    Hmmm... that's not what I expected it to do. The second
+    foo calls the first, as expected. But the third should
+    have called itself, not the second, right?
 
-    I could debug this in GDB, but quite frankly, that's gonna suck.
-    The level of abstraction is all wrong. I really need some proper
-    introspective debugging in the interpreter itself. And I feel like
-    FORTH is uniquely suited to introspection.
+    I could debug this in GDB, but quite frankly, that's
+    gonna suck.  The level of abstraction is all wrong. I
+    really need some proper introspective debugging in the
+    interpreter itself. And I feel like FORTH is uniquely
+    suited to introspection.
 
-    At a minimum, I'd like a list of words in the dictionary with
-    addresses. I'd like to see what HERE points to. And the contents
-    of the stack.
+    At a minimum, I'd like a list of words in the dictionary
+    with addresses.  I'd like to see what HERE points to.
+    And the contents of the stack.
 
-    I'm pretty sure I've got all the primitives I need to get those
-    things. I just have to solve the puzzle.
+    I'm pretty sure I've got all the primitives I need to
+    get those things. I just have to solve the puzzle.
 
-    Then maybe I'll be able to figure out why RECURSE isn't doing
-    what I think it should do.
+    Then maybe I'll be able to figure out why RECURSE isn't
+    doing what I think it should do.
 
-    First: printing the pointers HERE and LATEST sounds pretty easy.
+    (Update: this didn't work. Feel free to skim ahead...)
+
+    First: printing the pointers HERE and LATEST sounds
+    pretty easy.
 
 HERE .
 134537812
@@ -107,8 +112,9 @@ LATEST .
 
     I presume those decimal addresses are correct.
 
-    Two nights later: Now I've added a PRINTWORD word in assembly that
-    takes the address of a word (its header) and prints its name.
+    Two nights later: Now I've added a PRINTWORD word in
+    assembly that takes the address of a word (its header)
+    and prints its name.
 
 LATEST PRINTWORD
 RECURSE
@@ -117,29 +123,32 @@ LATEST @ PRINTWORD
 LATEST @ @ PRINTWORD
 '.'
 
-    The above example is printing the last three words in the dictionary
-    by using @ to fetch the address  of the previous word from the linked
-    list.
+    The above example is printing the last three words in
+    the dictionary by using @ to fetch the address  of the
+    previous word from the linked list.
 
-    I'd like to see some additional info about words like how long their
-    definitions are and whether they're immediate and/or hidden. 
+    I'd like to see some additional info about words like
+    how long their definitions are and whether they're
+    immediate and/or hidden. 
 
 HERE LATEST - .
 36
 
     That tells me that RECURSE is 36 bytes long, I guess.
 
-    The length + flags (it's hidden and immediate) should be here:
+    The length + flags (it's hidden and immediate) should be
+    here:
 
 LATEST 4 + C@ .
 135
 
-    Hmmmm... that's 10000111 in binary, so looks like the length
-    portion is 111 (7). That checks out, 'RECURSE' is seven letters
-    long. (See bc session below for the binary conversion, etc.)
+    Hmmmm... that's 10000111 in binary, so looks like the
+    length portion is 111 (7). That checks out, 'RECURSE' is
+    seven letters long. (See bc session below for the binary
+    conversion, etc.)
 
-    And it should be immediate. Does that correspond with 10000111?
-    Let's see:
+    And it should be immediate. Does that correspond with
+    10000111?  Let's see:
 
         %assign F_IMMED 0x80
         %assign F_HIDDEN 0x20
@@ -161,13 +170,16 @@ LATEST 4 + C@ .
         20
         100000
 
-    Yup! RECURSE is immediate. If it were hidden, it would have had
-    10100111 in the length+flags.
+    Yup! RECURSE is immediate. If it were hidden, it would
+    have had 10100111 in the length+flags.
 
-    Next night. Well, the above was neat and a good refresher for me
-    but I messed around with it quite a bit trying to debug RECURSE
-    without solving. However, during all of that messing around, I
-    did figure out what's going wrong. Here's Jones's RECURSE:
+    If you're skimming, stop here!
+
+    Next night. Well, the above was neat and a good
+    refresher for me but I messed around with it quite a bit
+    trying to debug RECURSE without solving.  However,
+    during all of that messing around, I did figure out
+    what's going wrong. Here's Jones's RECURSE:
 
         : RECURSE IMMEDIATE
                 LATEST @	\ LATEST points to the word being compiled at the moment
@@ -175,10 +187,102 @@ LATEST 4 + C@ .
                 ,		\ compile it
         ;
 
-    The problem is that LATEST already points to the word being compiled.
-    LATEST @ fetches the _value_ at that address. Well, that's a pointer
-    to the _previous_ word. Which completely explains the behavior I've
-    seen.
+    The problem is that LATEST already points to the word
+    being compiled.  LATEST @ fetches the _value_ at that
+    address. Well, that's a pointer to the _previous_ word.
+    Which completely explains the behavior I've seen.
 
-    I'm baffled.
-    This is the exact same bug in the interpreter...
+    I'm baffled. This is the exact same "bug" I encountered
+    in the COLON and SEMICOLON words.
+
+    Several days pass: Ha ha, wow. So I ended up creating an
+    actual web page containing the conundrum and posted that
+    to reddit.com/r/forth and got an *excellent* explanation
+    in just a couple hours:
+
+    I WAS MISSING THIS FUNDAMENTAL FACT ABOUT VARIABLES:
+
+        THEY DON'T LEAVE THEIR VALUE ON THE STACK.
+        
+        THEY LEAVE THEIR ADDRESS ON THE STACK.
+
+    Why? Because that way you can also write to them. By
+    providing an address instead, it allows for both STORE
+    (!) as well as FETCH (@).
+
+    (I believe constants, by contrast, leave their values on
+    the stack.)
+
+    Anyway, my bug comes down to returning FETCH to the ':'
+    and ';' definitions:
+
+        dd LATEST, FETCH, HIDDEN ; Make the word hidden while it's being compiled.
+
+        dd LATEST, FETCH, HIDDEN ; Unhide word now that it's been compiled.
+
+    And now to test. This should be an infinite loop.
+
+: all-nines 9 . RECURSE ;
+all-nines
+999999999999999999999999999999999999999999999999999999999999999999...
+...999999999999999999999999
+Program received signal SIGSEGV, Segmentation fault.
+0x0804e278 in ?? ()
+(gdb)
+
+    I'm 100% not sure what caused that segmentation fault.
+    Oh, probably the stack overflowed. That makes sense
+    because a recursive word that never stops also never
+    gets to the EXIT that ';' compiles into the end of the
+    word. And EXIT is the only mechanism that automatically
+    pops the return stack.
+
+    By the way, I did try to make a non-infinite recursive
+    word using 0BRANCH and gave up. That's worse than
+    writing assembly with no labels!
+
+    Anyway, I'll go back to earlier logs now to add a note
+    so no one else is led astray by my fundamental
+    misunderstanding. Yikes:
+
+        r! ag -l 'fetch|latest|@' log* | sort
+        log02.txt
+        log04.txt
+        log07.txt
+        log09.txt
+        log10.txt <-- here is where I'm first confused
+        log11.txt <-- here I drop FETCH from : and ;
+        log15.txt <-- wrong variable examples
+        log16.txt <-- wrong variable examples
+        log17.txt
+        log19.txt
+
+    And is it possible that I can now read all of
+    jonesforth.f without errors?
+
+    I'll try it by setting the __lines_of_jf_to_read to the
+    end of the file: 1790...
+
+PARSE ERROR:    ( look it up in the dictionary )
+        >DFA
+PARSE ERROR:    ( look it up in the dictionary )
+        >DFA
+
+Program received signal SIGSEGV, Segmentation fault.
+_COMMA () at nasmjf.asm:689
+689         stosd                  ; puts the value in eax at edi, increments edi
+(gdb)
+
+    Ha ha, nope. But I think I'm getting further. Those
+    PARSE ERROR messages are new. Weird, I don't see why it
+    would choke on a comment when there are other '(...)'
+    comments before that:
+
+        : TO IMMEDIATE	( n -- )
+                WORD		( get the name of the value )
+                FIND		( look it up in the dictionary )
+                >DFA		( get a pointer to the first data field (the 'LIT') )
+
+    Well, I'll set the lines to read before that parse error
+    and keep working my way down. At least RECURSE works
+    now...

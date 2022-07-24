@@ -74,9 +74,17 @@ code_COMMA () at nasmjf.asm:590
     ; at the address on the stack
 
     And LATEST is a variable that pushes the current
-    word onto the stack.
+    word's address onto the stack.
 
-    LATET makes sense: we'll get the word's address in order
+        !!!!!!!!!!!!!!!!!!!! Update !!!!!!!!!!!!!!!!!!!!
+        ! In log19.txt, I realize that my variable     !
+        ! handling is wrong. Variables should leave    !
+        ! their addresses on the stack, not their      !
+        ! values! We need FETCH to get the value from  !
+        ! the address!                                 !
+        !!!!!!!!!!!!!!!!!!!! Update !!!!!!!!!!!!!!!!!!!!
+
+    LATEST makes sense: we'll get the word's address in order
     to toggle its hidden flag so a partially-compiled word
     won't show up in any dictionary searches (which I guess could
     happen if a word relied on a previous definition of itself?)

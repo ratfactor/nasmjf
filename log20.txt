@@ -1,0 +1,18 @@
+    So log19.txt had a major breakthrough with my
+    understanding of Forth variables. And it solved a
+    previous mystery of the need for FETCH after the
+    variable LATEST.
+
+    Unfortunately, I'm still crashing with a segfault and
+    getting PARSE ERROR on some jonesforth.f source.
+
+    So I'll set my lines to read to just before that error
+    and continue reading and testing the Forth source:
+
+        %assign __lines_of_jf_to_read 704
+
+    After RECURSE comes IF ... THEN statements! Oooh,
+    exiciting stuff. With this, I can *finally* write
+    programs with branching and logic!
+
+

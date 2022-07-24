@@ -1,3 +1,14 @@
+    Warning, the examples with variables in this log are
+    all wrong. This update explains:
+
+        !!!!!!!!!!!!!!!!!!!! Update !!!!!!!!!!!!!!!!!!!!
+        ! In log19.txt, I realize that my variable     !
+        ! handling is wrong. Variables should leave    !
+        ! their addresses on the stack, not their      !
+        ! values! We need FETCH to get the value from  !
+        ! the address!                                 !
+        !!!!!!!!!!!!!!!!!!!! Update !!!!!!!!!!!!!!!!!!!!
+
     Now I've ported the primitive memory words.
     Actually, I'd already done FETCH ('@') because it was
     required by INTERPRET.

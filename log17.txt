@@ -144,13 +144,11 @@ Jones <rich@annexia.org> http://annexia.org/forth\n\\\tThis is PUBLIC DOMAIN"...
 
     Next night: okay, here goes nothing:
 
-
         jfsource:   db "jonesforth/jonesforth.f", 0h
         %assign __lines_of_jf_to_read 52
 
     This reads to line 52 of jonesforth.f, which is a bunch of comments
     and a definiton of / and MOD:
-
 
         : / /MOD SWAP DROP ;
         : MOD /MOD DROP ;

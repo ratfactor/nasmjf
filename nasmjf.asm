@@ -58,8 +58,18 @@ line_count:   resb 4
 SECTION .data
 
 cold_start: dd QUIT  ; we need a way to indirectly address the first word
-jfsource:   db "jonesforth/jonesforth.f", 0h ; LOADJF path
-%assign __lines_of_jf_to_read 117            ; LOADJF lines (tempoary)
+
+; This is a major difference with my port: reading the jonesforth.f
+; source upon startup. Search for 'LOADJF' in this file to see all
+; of the places where I made changes or additions to support this.
+; Note the parts which allow the loading of N lines of jonesforth.f
+; source on startup (__lines_of_jf_to_read).
+
+; TODO: currently, lines set to 1790 is a hack! Instead, I should
+;       check for eof OR a hard-coded limit down in KEY.
+
+jfsource:   db "jonesforth/jonesforth.f", 0h ; LOADJF path, null-terminated string
+%assign __lines_of_jf_to_read 704            ; LOADJF lines to read
 
 SECTION .text
 
@@ -112,8 +122,7 @@ _start:
     int 0x80
 
     ; Process jonesforth.f upon startup.
-    ;   data: jfsource    - file path for jonesforth.f
-    ; This is another snippet 
+    ; 'jfsource' is the string with the file path for jonesforth.f
     ; open jonesforth.f
     mov ecx, 0                ; LOADJF read only flag for open
     mov ebx, jfsource         ; LOADJF path for open
@@ -444,20 +453,20 @@ _KEY:
     xor eax, eax
     mov al, [ebx]               ; get next key from input buffer
 
-    mov ecx, [line_count]       ; LOADJF need to check line_count?
-    cmp ecx, 0                  ; LOADJF -1 means we don't
-    jl .continue_with_key       ; LOADJF don't need to check (done with JF)
-    cmp al, `\n`                ; LOADJF is newline?
-    jne .continue_with_key      ; LOADJF nope!
-    inc ecx                     ; LOADJF yup! increment line count and see if we're done
-    mov [line_count], ecx       ; LOADJF
-    cmp ecx, __lines_of_jf_to_read ; LOADJF Read this many lines of jonesforth.f source...
-    jl  .continue_with_key      ; LOADJF
-    mov dword [line_count], -1  ; LOADJF setting to done (see test above)
+    mov ecx, [line_count]       ; LOADJF -1 means we are 'done' with jf source
+    cmp ecx, 0                  ; LOADJF
+    jl .continue_with_key       ; LOADJF Yup, 'done'.
+    cmp al, `\n`                ; LOADJF Not done, keep counting lines of jf source
+    jne .continue_with_key      ; LOADJF Not a newline, keep reading input
+    inc ecx                     ; LOADJF Newline! Increment line count
+    mov [line_count], ecx       ; LOADJF See if we're done
+    cmp ecx, __lines_of_jf_to_read ; LOADJF Compare lines with our limit
+    jl  .continue_with_key      ; LOADJF Less than limit, keep reading
+    mov dword [line_count], -1  ; LOADJF Over limit, set to 'done' (see test above)
     ; TODO: close source file   ; LOADJF
+    ; TODO: check for EOF!
     mov dword [read_from_fd], 0 ; LOADJF change the read-from fd to STDIN
     mov dword [bufftop], buffer ; LOADJF force it to "run out" of buffered input
-    ;jmp _KEY                   ; LOADJF start getting chars from stdin
 
 .continue_with_key:
     inc ebx
@@ -465,7 +474,7 @@ _KEY:
     ret
 
 .get_more_input:  ; Use read(2) to fetch more input
-    mov ebx, [read_from_fd] ; 1st param: file to read from (could be stdin)
+    mov ebx, [read_from_fd] ; LOADJF 1st param: input file (STDIN when getting user input)
     ;xor ebx,ebx             ; 1st param: stdin
     mov ecx,buffer          ; 2nd param: buffer
     mov [currkey],ecx
@@ -726,8 +735,8 @@ _FIND:
     dd FWORD                 ; Get the name of the new word
     dd CREATE               ; CREATE the dictionary entry / header
     dd LIT, DOCOL, COMMA    ; Append DOCOL  (the codeword).
-    ;dd LATEST, FETCH, HIDDEN ; Make the word hidden while it's being compiled.
-    dd LATEST, HIDDEN ; Make the word hidden while it's being compiled.
+    dd LATEST, FETCH, HIDDEN ; Make the word hidden while it's being compiled.
+    ;dd LATEST, HIDDEN ; Make the word hidden while it's being compiled.
     dd RBRAC                ; Go into compile mode.
     dd EXIT                 ; Return from the function.
 
@@ -736,8 +745,8 @@ _FIND:
 
     DEFWORD ";",1,F_IMMED,SEMICOLON
     dd LIT, EXIT, COMMA     ; Append EXIT (so the word will return).
-;    dd LATEST, FETCH, HIDDEN ; Unhide word now that it's been compiled.
-    dd LATEST, HIDDEN ; Unhide word now that it's been compiled.
+    dd LATEST, FETCH, HIDDEN ; Unhide word now that it's been compiled.
+    ;dd LATEST, HIDDEN ; Unhide word now that it's been compiled.
     dd LBRAC                ; Go back to IMMEDIATE mode.
     dd EXIT                 ; Return from the function.
 
@@ -1151,7 +1160,7 @@ _PRINTWORD:
     NEXT
 
     ; ===============================
-    ; Return stack maniputation words
+    ; Return stack manipulation words
     ; ebp is the return stack pointer (RSP)
 
     DEFCODE ">R",2,,TOR  ; move value from param stack to return stack
@@ -1301,7 +1310,7 @@ _PRINTWORD:
 ;  
 %macro DEFVAR 5 ; 1=name 2=namelen 3=flags 4=label 5=value
         DEFCODE %1,%2,%3,%4
-        push dword [var_%4]
+        push dword var_%4
         NEXT
     section .data
         align 4
