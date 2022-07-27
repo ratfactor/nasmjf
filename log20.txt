@@ -15,4 +15,85 @@
     exiciting stuff. With this, I can *finally* write
     programs with branching and logic!
 
+    So the format is:
 
+        <condition on stack> IF true-statements THEN
+
+    Oh, and the Jones implementation of these only works in
+    compiled words. These are crazy enough as it is (THEN
+    supplies the address to branch to in a way that reminds
+    me of INTERCAL's "come from" statement. Ha ha.) but
+    apparently you can make some that work in immediate mode
+    too.
+
+    The gymnastics in the definition are amazing.  And I can
+    finally see 0BRANCH used properly. No wonder I wasn't
+    having much luck on my own with that.
+
+    Okay, let's see if it works:
+
+: foo IF 1 . THEN 2 . ;
+1 foo
+1 2
+0 foo
+2
+
+    That worked. Oh, and Forth is one of those languages
+    which use numeric 1 for true, 0 for false,
+
+    Now an ELSE:
+
+: bar IF 1 . ELSE 2. THEN 3 . ;
+1 foo
+1 3
+0 foo
+2 3
+
+    Excellent.
+
+    Next night: This is what I'm *most* excited about:
+    looping!
+
+        BEGIN <put condition on stack>
+        WHILE
+            <still true, do this>
+        REPEAT
+
+    Here goes nothing:
+
+: foo BEGIN DUP 0> WHILE DUP . 1- REPEAT ;
+10 foo
+10 9 8 7 6 5 4 3 2 1
+
+    (By the way, I had a bit of a challenge remembering how
+    to use 0> and 1- because they _look_ like, "zero is
+    greater than..." and, "backwards negative one." But the
+    Forth way to read them is: "push 0 onto the stack and
+    check if first item is greater than that," and, "push 1
+    onto the stack and subtract.")
+
+    Ooh, and I wonder if I can use IF to make a RECURSEive
+    word that actually works correctly?
+
+: foo DUP . DUP 0> IF 1- RECURSE THEN ;
+5 foo
+5 4 3 2 1 0
+
+    Yes! Now I'm getting somewhere.
+    
+    UNLESS is just NOT IF...but it uses that wild [COMPILE]
+    word to include the immediate IF word as part of its
+    definition. Usage is simple. And I just remembered that
+    we have TRUE and FALSE defined, so I can use those
+    instead of 1 and 0 (take that, Perl!):
+
+: foo UNLESS 'A' EMIT ELSE 'A' 1+ EMIT THEN ;
+TRUE foo
+B
+FALSE foo
+A
+
+    And yeah, I just realized I can get 'B' by incrementing
+    'A'. It seems my mind is in top form tonight, ha ha.
+
+    Next is comments with ( parens ).

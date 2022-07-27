@@ -970,7 +970,7 @@ _PRINTWORD:
 
 
     ; ==============================
-    ; comparison words!
+    ; comparison/conditional words!
 
     DEFCODE "=",1,,EQU      ;  top two values are equal?
     pop eax
@@ -1042,7 +1042,7 @@ _PRINTWORD:
     push eax
     NEXT
  
-    DEFCODE "0<",2,,ZLT    ; comparisons with 0
+    DEFCODE "0<",2,,ZLT    ; greater than zero
     pop eax
     test eax,eax
     setl al
@@ -1050,7 +1050,7 @@ _PRINTWORD:
     push eax
     NEXT
  
-    DEFCODE "0>",2,,ZGT
+    DEFCODE "0>",2,,ZGT   ; less than zero
     pop eax
     test eax,eax
     setg al
