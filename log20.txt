@@ -96,4 +96,84 @@ A
     And yeah, I just realized I can get 'B' by incrementing
     'A'. It seems my mind is in top form tonight, ha ha.
 
-    Next is comments with ( parens ).
+    Next is comments with ( parens ). And since '(' is an
+    immediate word, it can be programmed to be smart and
+    handle nested parethesis correcty:
+
+: foo ( this is foo ) 42 . ;
+( now some foo ) foo
+42
+( can we nest
+as much ( as we want?
+   ( of course! )
+) )
+foo
+42
+
+    Amazing. Not too many languages let you change the
+    comment syntax mid-stream. :-)
+
+    Now that we have comments, Jones demonstrates some stack
+    effect comments (which are a standard documentation
+    format for words in Forth):
+
+
+        : NIP ( x y -- y ) SWAP DROP ;
+        : TUCK ( x y -- y x y ) SWAP OVER ;
+        : PICK ( x_u ... x_1 x_0 u -- x_u ... x_1 x_0 x_u )
+                1+		( add one because of 'u' on the stack )
+                4 *		( multiply by the word size )
+                DSP@ +		( add to the stack pointer )
+                @    		( and fetch )
+        ;
+
+    Let's try them out. NIP shows that it takes two items
+    from the stack and returns the first:
+
+1 2 3 NIP . .
+3 1
+
+    Tuck takes two items and puts a copy of the first after
+    the second:
+
+1 2 3 TUCK . . . .
+3 2 3 1
+
+    The notation for PICK looks insane until you stare at it
+    for a while. We get the element in the 'u'th position on
+    the stack where 'u' is on top of the stack.
+
+50 40 30 20 10 4 PICK . . . . . .
+50 10 20 30 40 50
+
+    Clever notation and did you see the definition above for
+    PICK? It had not occurred to me to fetch items on the
+    stack via the stack pointer!
+
+    Makes me want to try:
+
+1 2 3 4
+DSP@ @ .
+4
+DSP@ 4+ @ .
+3
+DSP@ 8 + @ .
+2
+
+    Of course that works. You can do anything in Forth.
+
+    Which reminds me: long ago, I remember hearing about
+    this legendary programming language called Forth where
+    you could even redefine _numbers_ to have different
+    meanings.
+
+    I can't believe it's taken me this long to try it:
+
+: 4 12 ;
+4 1 + .
+13
+
+    LOL. Of course. But, wow. That's really something to
+    see, isn't it?
+
+
