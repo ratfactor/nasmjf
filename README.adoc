@@ -1,14 +1,18 @@
 = NASM port of jonesFORTH
 
-NOTE: This is a work in progress! I'm working on it in public.  The program
-likely segfaults at any given commit.
+This mostly a port from the original GNU Assembler (GAS) to the Netwide
+Assembler (NASM), but I have made a couple important changes. The biggest one
+is that nasmjf loads the `jonesforth.f` source file (containing the second half
+of the interpreter written in Forth) upon startup.
 
-Update: The assembly portion of this interpreter port is pretty much "done".
-It still needs cleanup and I'm pretty sure there's still a bug. However, I
-am now working my way through the FORTH source (jonesforth.f) of the
-implementation and that should work out the rest of the bugs.
+NOTE: This is a work in progress! I'm working on it in public. It currently
+segfaults if you try to run the entire jonesforth.f startup file. So clearly
+there's still a bug lurking in the interpreter somewhere.
 
-Previous Update: This port can now print Hello World!
+Otherwise, the assembly portion of this interpreter port is pretty much "done".
+It still needs cleanup.
+
+Here's a primitive (and kinda cheating) Hello World:
 
 ----
 : h1 111 108 108 101 72 EMIT EMIT EMIT EMIT EMIT ;
@@ -18,10 +22,6 @@ h1 s h2
 Hello World
 ----
 
-Sure, it's character-by-character via EMIT, but it still counts.
-And speaking of counting, I've got a bunch of stack manipulation
-and math words working. It's moving fast now!
-
 Check out the log text files. They're my rambling learning-in-public and
 thinking "out loud" way of describing what I'm up to. The latest log will probably
 give an idea of what I'm currently doing or what I've most recently completed.
@@ -29,20 +29,42 @@ give an idea of what I'm currently doing or what I've most recently completed.
 I also wrote an article about my delightful process with this project:
 http://ratfactor.com/assembly-nights
 
-== Load JonesFORTH source on start
+I also have a placeholder for future notes and rambling thoughts about the project here:
+http://ratfactor.com/nasmjf
+
+
+== Loads JonesFORTH source on start
 
 The implementation of JonesFORTH is in two parts: an assembly language
-"boostrap" and additional word definitions written in FORTH.
+"bootstrap" and additional essential word definitions written in FORTH.
 
-This NASM port of the assembly portion has an important change: it contains
-a hard-coded path to the `jonesforth.f` FORTH source file and reads it
-automatically when the interpreter starts. This is to make starting and
-debugging the system easier and more convenient.
+This NASM contains a hard-coded path to the `jonesforth.f` FORTH source file
+and reads it automatically when the interpreter starts. This is to make
+starting and debugging the system easier and more convenient.
 
 If you wish to disable or simply examine this change, search for lines with
-comments containing the string `LOADJF`. Removing the lines should cleanly
-remove the additional feature. At least, that's the theory. You may also want
-to change the path to the source file. Feel free to do so.
+comments containing the string `LOADJF`. You can comment out most of these
+lines. A few will need to remain. Figuring out which is "left as an exercise
+for the reader", as they say.
+
+== Compiling and running
+
+Assemble and link with:
+
+```
+# assemble! (-g enables debugging symbols)
+nasm -f elf32 -g -o nasmjf.o nasmjf.asm
+
+# link
+ld nasmjf.o -o nasmjf ; rm nasmjf.o
+```
+
+Run by calling the executable you just compiled:
+```
+$ ./nasmjf
+'A' EMIT
+A
+```
 
 == GNU Debugger
 
