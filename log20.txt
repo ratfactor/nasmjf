@@ -176,4 +176,17 @@ DSP@ 8 + @ .
     LOL. Of course. But, wow. That's really something to
     see, isn't it?
 
+    Then a word that takes advantage of the ability to loop:
+    SPACES.
+
+0 SPACES
+          20 SPACES
+                    20 SPACES
+
+    And then HEX and DECIMAL, which simply set BASE:
+
+15 HEX .
+F
+FF00 DECIMAL .
+65280
 
