@@ -190,3 +190,64 @@ F
 FF00 DECIMAL .
 65280
 
+    Next up is number printing. If you've been reading this
+    far, you know that I added '.' DOT (prints number from
+    the top of the stack) in assembly as a debugging tool.
+    The one defined in jonesforth.f will, of course
+    "overwrite" mine.
+
+    Before '.' itself, Jones defines these:
+
+	U.R  ( u width -- )
+	U.   ( u -- )
+	.R   ( n width -- )
+
+    Where U stands for "unsigned" number and R indicates
+    that the word will print the number padded to a width.
+    Let's try it out. Here's normal unsigned number
+    printing:
+
+50 U. CR 5000 U. CR
+50
+5000
+
+    Now with a width of 10 characters:
+
+50 10 U.R CR 500 10 U.R CR 5000000 10 U.R CR
+        50
+       500
+   5000000
+
+Compare signed and unsigned printing:
+
+-50 U.
+4294967246
+-50 10 .R
+       -50
+
+    And now one that I'm very excited about: '.S' which
+    prints everything on the stack without removing anything
+    on the stack.
+
+1 2 3 4 5 .S
+5 4 3 2 1 1 3215633123 0 3215633132 3215633148 3215633162 3215634118 3215634127
+3215634178 3215634191 3215634203 3215634213 3215634256 3215634264 3215634275 3215634288
+...6649441 791559519 1836278126 771778154 1935765039 6711917 0 Segmentation fault
+
+    Oh no! Let's take a look at the definition:
+
+        : .S		( -- )
+                DSP@		( get current stack pointer )
+                BEGIN
+                        DUP S0 @ <
+                WHILE
+                        DUP @ U.	( print the stack element )
+                        SPACE
+                        4+		( move up )
+                REPEAT
+                DROP
+        ;
+
+    I'd say my S0 variable isn't set correctly.
+
+    to be continued...
