@@ -250,4 +250,123 @@ Compare signed and unsigned printing:
 
     I'd say my S0 variable isn't set correctly.
 
-    to be continued...
+    A couple nights later: Yes, that's exactly what was
+    wrong. But it took me a while to figure out why.
+
+    Long story, but in my DEFVAR macro, if I try to set the
+    labels by "name" macro parameter like JonesForth does,
+    NASM won't like it:
+
+        var_"S0":
+
+    (Since a quote isn't a legal label character, it just
+    sees the first part, 'var_' and complains about
+    redefining 'var_' over and over.)
+
+    And maybe I figured that out before, because I was
+    setting them to the unquoted "label" macro parameter
+    instead:
+
+        var_SZ
+
+    Which is great, except where we initially store the
+    stack pointer in S0, it was by name (as in JonesForth).
+
+    The fix was easy. Just change:
+
+
+        mov [var_S0], esp ; save stack pointer
+
+    to:
+
+        mov [var_SZ], esp ; save stack pointer
+
+    In case you're wondering why it didn't just crash
+    before, since the macro wasn't defining a 'var_S0'
+    label, I had apparently made one. Maybe I meant it as a
+    temporary measure. I don't know, but it certainly was
+    confusing to piece together later.
+
+    With the fix in, let's test DSP@ and S0. They should
+    start off the same:
+
+HEX
+DSP@ U.
+BFFFF990
+S0 @ U.
+BFFFF990
+
+    Then let's put something on the stack:
+
+1
+DSP@ U.
+BFFFF98C
+
+    And another thing:
+
+2
+DSP@ U.
+BFFFF988
+
+    Then pop the stack:
+
+.
+2
+DSP@ U.
+BFFFF98C
+
+    Again, and we should be back where we started:
+
+.
+1
+DSP@ U.
+BFFFF990
+
+    Hooray! Now .S should work, right?
+
+1 2 3
+.S
+3 2 1
+.S
+3 2 1
+
+    Excellent! It non-destructively prints the stack!
+
+    (Now that I've made another fix to my port, I wonder if
+    _now_ I can run jonesforth.f without errors? Darn it,
+    nope. Same parse error on the the same spot as before.
+    Oh well, I'll keep going until I hit that spot...)
+
+    Next word is UWIDTH. It prints the width of a printed
+    number:
+
+5 UWIDTH .
+1
+42 UWIDTH .
+2
+777 UWIDTH .
+3
+
+    That works, but it's no surprise since U.R and .R depend
+    on it.
+
+    Oh, and I thought this was fun. To add a space to U.,
+    Jones redefines it by calling the previous definition
+    and adding a space:
+
+        ( The real U., note the trailing space. )
+        : U. U. SPACE ;
+
+    I'll close out this log with another tiny one:
+
+
+        ( ? fetches the integer at an address and prints it. )
+        : ? ( addr -- ) @ . ;
+
+    Which will be easy to test:
+
+555 DSP@ ?
+555
+
+    Looks like there's a real mix of stuff coming up next.
+    See you in the next log!

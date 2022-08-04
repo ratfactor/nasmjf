@@ -49,7 +49,7 @@ SECTION .bss
 %define buffer_size 4096
 return_stack: resb 8192
 return_stack_top: resb 4
-var_S0:       resb 4
+; var_S0:       resb 4 <---------------what on earth???
 data_segment: resb 1024 
 buffer:       resb buffer_size
 emit_scratch: resb 4 ; note: JF had this in .data as .space 1
@@ -71,28 +71,16 @@ cold_start: dd QUIT  ; we need a way to indirectly address the first word
 jfsource:   db "jonesforth/jonesforth.f", 0h ; LOADJF path, null-terminated string
 %assign __lines_of_jf_to_read 704            ; LOADJF lines to read
 
+
+; +----------------------------------------------------------------------------+
 SECTION .text
-
-; +----------------------------------------------------------------------------+
-; | Forth DOCOL implementation                                                 |
-; +----------------------------------------------------------------------------+
-; This is the "interpreter" word - it is used at the beginning of proper Forth
-; words that are composed of other words (not machine code). It gets the esi
-; register pointed at the first word address and starts the NEXT macro.
-DOCOL:
-    PUSHRSP esi     ; DOCOL: push esi on to the RSP return stack
-    add eax, 4      ; eax points to DOCOL (me!) in word definition. Go to next.
-    mov esi, eax    ; Put the next word pointer into esi
-    NEXT
-
-; +----------------------------------------------------------------------------+
 global _start
 
 _start:
 
     cld    ; Clear the "direction flag" which means the string instructions (such
            ; as LODSD) work in increment order instead of decrement...
-    mov [var_S0], esp ; save the regular stack pointer (used for data) in FORTH var S0!
+    mov [var_SZ], esp ; save the regular stack pointer (used for data) in FORTH var S0!
 
     mov ebp, return_stack_top ; Initialise the return stack pointer
                               ; LOL, I accidentally had this set to the "bottom" of
@@ -137,6 +125,18 @@ _start:
     ; address in esi. NEXT will jump to whatever's stored there.
     mov esi, cold_start
     NEXT ; Start Forthing!
+
+; +----------------------------------------------------------------------------+
+; | Forth DOCOL implementation                                                 |
+; +----------------------------------------------------------------------------+
+; This is the "interpreter" word - it is used at the beginning of proper Forth
+; words that are composed of other words (not machine code). It gets the esi
+; register pointed at the first word address and starts the NEXT macro.
+DOCOL:
+    PUSHRSP esi     ; DOCOL: push esi on to the RSP return stack
+    add eax, 4      ; eax points to DOCOL (me!) in word definition. Go to next.
+    mov esi, eax    ; Put the next word pointer into esi
+    NEXT
 
 ; +----------------------------------------------------------------------------+
 ; "flags" for Forth word definitions
@@ -240,7 +240,6 @@ _start:
     mov ebx, 0    ; exit code
     mov eax, 1    ; exit syscall
     int 80h       ; call kernel
-
 
 
 
@@ -1308,13 +1307,25 @@ _PRINTWORD:
 ;   S0      Stores the address of the top of the parameter stack.
 ;   BASE    The current base for printing and reading numbers.
 ;  
+
+
+;	.macro defvar name, namelen, flags=0, label, initial=0
+;	defcode \name,\namelen,\flags,\label
+;	push $var_\name
+;	NEXT
+;	.data
+;	.align 4
+;var_\name :
+;	.int \initial
+;	.endm
+
 %macro DEFVAR 5 ; 1=name 2=namelen 3=flags 4=label 5=value
         DEFCODE %1,%2,%3,%4
         push dword var_%4
         NEXT
     section .data
         align 4
-    var_%4:
+    var_%4:   ; Give it an asm label. Example: var_SZ for 'S0'
         dd %5 ; note dd to reserve a "double" (4b)
 %endmacro
 
@@ -1324,6 +1335,7 @@ _PRINTWORD:
     DEFVAR "BASE",4,,BASE,10
     DEFVAR "LATEST",6,,LATEST,name_LATEST ; points to last word defined...which will just
                                           ; happen to be self. We'll see if this works.
+
 
 ; TODO: instead of these silly 0,0,0,0 placeholders, use dd (double)
 
