@@ -1,0 +1,204 @@
+    The last log saw yet _another_ bug in my DEFVAR macro.
+    Sheesh. Hopefully I have variables working correctly
+    now?
+
+    As I mentioned last night, the next words look like a
+    real mixture of things. Let's jump into it:
+
+    WITHIN is a conditional that tests if a number is
+    between two other numbers. This highlights the advantage
+    of such a flexible language (and the simplicity of the
+    syntax). I'll format this slightly to make a bit of a
+    truth table out of it to demonstrate how within works:
+
+1 2 3 WITHIN .  0
+2 3 1 WITHIN .  0
+3 1 2 WITHIN .  0
+2 1 3 WITHIN .  1  <-- 2 is within 1 and 3
+
+    DEPTH gives us the depth of the stack:
+
+1 2
+.S
+2 1
+DEPTH .
+8
+
+    Huh? Oh, it's in bytes, not number of items!
+
+    ALIGNED rounds a number up to the next multiple of 4,
+    which aligns addresses on 32-bit (4 byte) computers.
+    It's easy to test:
+   
+1 ALIGNED .
+4
+7 ALIGNED .
+8
+
+    ALIGN performs ALIGNED on HERE. Here's the definition.
+
+        : ALIGN HERE @ ALIGNED HERE ! ;
+
+    I have a sense for when this would be used while
+    compiling, but don't really feel like trying to make up
+    a test for it. I'm content to see how it's used later
+    and test *that*.
+
+    And now, the moment we've all been waiting for: strings!
+
+    First, we need a new primitive to store the bytes of the
+    string. The word ',' (COMMA) does this for word-sized
+    (four bytes, the size of a 32-bit address) data. As with
+    the other byte-sized words, the name is prepended with a
+    letter 'C'.
+
+    So let's compare 'C,':
+
+        : C,
+                HERE @ C!	( store the character in the compiled image )
+                1 HERE +!	( increment HERE pointer by 1 byte )
+        ;
+
+    ...with the assembly definition of ',':
+
+        mov edi, [var_HERE]
+        stosd                  ; puts the value in eax at edi, increments edi
+        mov [var_HERE], edi
+
+    Same thing, only stosd increments edi (HERE) by 4 rather
+    than 1.
+
+    I've learned just to see these primitives in action.
+    Trying to use _some_ them on their own is challenging
+    and surpisingly unrewarding.
+
+    Next, S" is a word that stores the characters which
+    follow as a string until it hits the end quote: ".
+
+    Note that there has to be a space after S" or it
+    wouldn't be matched as the correct word. However, the
+    final quote is NOT a word, it's just the special
+    character S" is looking for.
+
+    Finally, S" pushes the address of the start of the
+    string onto the stack, followed by the length of the
+    string.
+
+    Okay, I think I've got all of that:
+
+S" Hello World"
+.
+11
+
+    There we go. "Hello World" is 11 characters long.
+
+DUP
+HEX
+.
+804EADC
+@ EMIT
+H
+
+    It has been stored in memory at a particular address,
+    which means we can retrieve the string from there.
+    (I've EMITted the 'H' from Hello.)
+
+    In compile mode, it's stored in the word being compiled,
+    along with the LITSTRING word we defined in assembly.
+
+    Bug where in memory is this stored when in immediate
+    mode? Jones explains that this implementation stores it
+    in the same place where we compile words. So I guess we
+    can do this:
+
+HERE @ .
+804EADC
+HERE @ @ EMIT
+H
+HERE @ 1 + @ EMIT
+e
+
+    And since HERE clearly hasn't been moved to a point
+    after the string, that means it is temporary. It will be
+    overwritten as soon as we define a new word!
+
+    A close relative to S" (in fact, it uses S" in compiling
+    mode), is the ." word, which is Forth's print string
+    word. I'm excited to have this:
+
+." Hello World!"
+Hello World!
+
+    I've updated the README now that I can do this. :-)
+
+    And the good stuff keeps coming. The next words allow us
+    to define our own constants and variables. Not only
+    that, there's a handy explanation for each which would
+    have saved me some trouble before had I bothered to look
+    ahead (or, you know, actually learned the language I was
+    going to implement).
+
+	10 CONSTANT TEN
+	VARIABLE FOO
+
+	When TEN is executed, it leaves the integer 10 on the stack
+        When FOO is executed, it leaves the address of FOO on the stack
+
+    Let's try a constant:
+
+42 CONSTANT answer
+." The answer is " answer .
+The answer is 42
+
+    And a variable:
+
+VARIABLE foo
+9000 foo !
+foo @ .
+9000
+
+    The definition of CONSTANT is pretty easy. It's
+    basically the same as (and functionally equivalent to)
+    this:
+
+: answer 42 ;
+." The answer is " answer .
+The answer is 42
+
+    But variables needs to allocate some memory and store its
+    address. Two simple utilities aid in this:
+
+        ALLOT - advances HERE by the amount on the stack and
+                leaves the previous HERE on the stack
+
+        CELLS - multiplies the number on the stack by the
+                natural address size of the machine (4 bytes
+                for our 32-bit implementation)
+
+    What's neat about CELLS is it shows how you can build up
+    words that read rather like a natural language:
+
+HEX
+HERE @ .
+804EB30
+5 CELLS ALLOT
+.
+804EB30
+HERE @ .
+804EB44
+
+    And that looks like 20 bytes...hey, wait a second. Now
+    that I can easiy store values, I'll let Forth figure it
+    out:
+
+HERE @ CONSTANT previous
+5 CELLS ALLOT CONSTANT new
+previous .
+804EB78
+new .
+804EB98
+new previous - .
+20
+
+    Sweet! Next is VALUE
+
