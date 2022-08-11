@@ -200,5 +200,125 @@ new .
 new previous - .
 20
 
-    Sweet! Next is VALUE
+    VALUE is like VARIABLE, except that the result is a word
+    which leaves its value on the stack like a constant
+    instead of its address. Unline a constant, it can be
+    updated by another word, TO.
 
+        10 VALUE foo   create foo, set to 10
+        20 TO foo      update foo to 20
+
+    Sounds good:
+
+10 VALUE foo
+foo .
+10
+20 TO foo
+PARSE ERROR: 20 TO
+
+    Huh? Oh! Right between these two word definitions is
+    where I have it stop reading jonesforth.f on load.
+
+    Guess it's time to figure out the next bug in my port.
+
+    I'll try reading all lines again:
+
+        %assign __lines_of_jf_to_read 10000
+
+
+PARSE ERROR:    ( look it up in the dictionary )
+        >DFA
+PARSE ERROR:    ( look it up in the dictionary )
+        >DFA
+
+Program received signal SIGSEGV, Segmentation fault.
+_COMMA () at nasmjf.asm:688
+688         stosd     ; puts the value in eax at edi, increments edi
+(gdb)
+
+    Okay, so the PARSE ERROR message prints out the word
+    that caused the trouble, here ">DFA", after a buffer's
+    worth of context.
+
+    Ha ha, how silly. I simply missed that word in my port.
+    It's a simple definition since we already have >CFA,
+    which returns the codeword for a word pointer. >DFA just
+    has to advance 4 bytes to the "data" (so-called threaded
+    word addresses) after the codeword.
+
+    Okay, that's defined. Now can we run all of
+    jonesforth.f?
+
+Program received signal SIGSEGV, Segmentation fault.
+_COMMA () at nasmjf.asm:697
+697         stosd                  ; puts the value in eax at edi, increments edi
+(gdb)
+
+    Drat! Nope, still segfaulting. And in COMMA (',') again.
+
+    I wonder if I've overflowed some memory limitation? How
+    to check that...hmmm... Well, comma stores where HERE
+    points, and that's in memory reserved with Linux's brk
+    syscall. How about I bump that from 0x16000 to 0x64000
+    bytes:
+
+        add eax, 0x64000  ; add our desired number of bytes to break addr
+
+    Nope, exact same error:
+
+_COMMA () at nasmjf.asm:697
+
+    And same thing if I add another zero to the number. So
+    much for an easy answer. So I guess, ideally, I would
+    break when COMMA is trying to stosd at an address in edi
+    that is outside the reserved FORTH data area. But first
+    I need to know what that area is.
+
+    I'm going to add some custom FORTH variables to capture
+    this so it'll be easy to examine. I'll test in gdb
+    first:
+
+Breakpoint 2, _start () at nasmjf.asm:103
+103         xor ebx, ebx
+104         mov eax, __NR_brk         ; syscall brk
+105         int 0x80
+106         mov [var_HERE], eax       ; eax has start addr of data segment
+(gdb) p/x $eax
+$4 = 0x804e000
+107         mov [var_CSTART], eax     ; store info: start address of data segment
+108         add eax, 0x16000          ; add our desired number of bytes to break addr
+(gdb) p/x (int)var_HERE
+$5 = 0x804e000
+(gdb) p/x (int)var_CSTART
+$6 = 0x804e000
+
+    So far so good, CSTART contains the start address of the
+    data area.
+
+109         mov ebx, eax              ; reserve memory by setting this new break addr
+(gdb) p/x $eax
+$7 = 0x80b2000
+110         mov [var_CEND], eax       ; store info: end address of data segment
+111         mov eax, __NR_brk         ; syscall brk again
+(gdb) p/x $eax
+$8 = 0x80b2000
+112         int 0x80
+(gdb) p/x $eax
+117         mov ecx, 0                ; LOADJF read only flag for open
+(gdb) p/x $eax
+$10 = 0x80b2000
+(gdb) p/x (int)var_CEND
+$11 = 0x80b2000
+
+    That looks right. CEND contains the end address of the
+    data segment. Did I get my requested 0x64000 bytes?
+
+    Let's use the new FORTH vars to find out:
+
+(gdb) c
+Continuing.
+HEX CSTART @ . CEND @ . CEND @ CSTART @ - .
+804E000 80B2000 64000
+
+    Looking good. Now to catch the bad address being used in
+    COMMA...

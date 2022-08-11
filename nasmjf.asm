@@ -69,7 +69,7 @@ cold_start: dd QUIT  ; we need a way to indirectly address the first word
 ;       check for eof OR a hard-coded limit down in KEY.
 
 jfsource:   db "jonesforth/jonesforth.f", 0h ; LOADJF path, null-terminated string
-%assign __lines_of_jf_to_read 704            ; LOADJF lines to read
+%assign __lines_of_jf_to_read 704          ; LOADJF lines to read
 
 
 ; +----------------------------------------------------------------------------+
@@ -104,8 +104,10 @@ _start:
     mov eax, __NR_brk         ; syscall brk
     int 0x80
     mov [var_HERE], eax       ; eax has start addr of data segment
+    mov [var_CSTART], eax     ; store info: start address of data segment
     add eax, 0x16000          ; add our desired number of bytes to break addr
     mov ebx, eax              ; reserve memory by setting this new break addr
+    mov [var_CEND], eax       ; store info: end address of data segment
     mov eax, __NR_brk         ; syscall brk again
     int 0x80
 
@@ -511,6 +513,15 @@ _TCFA:
     add edi,3               ; The codeword is 4-byte aligned:
     and edi,~3              ;   Add ...00000011 and mask ...11111100.
     ret                     ;   For more, see log06.txt in this repo.
+
+        ; ***** TDFA *****
+        ; Turn a dictionary pointer into a "data" pointer.
+        ; Data simply being the word addresses immediately
+        ; following the codeword (4 bytes later).
+    DEFWORD ">DFA",4,,TDFA
+    dd TCFA                 ; get codeword address
+    dd INCR4                ; advance 4 bytes
+    dd EXIT                 ; return from this word
 
         ; ***** NUMBER *****
         ; parse numeric literal from input using BASE as radix
@@ -1333,6 +1344,8 @@ _PRINTWORD:
     DEFVAR "HERE",4,,HERE,0
     DEFVAR "S0",2,,SZ,0
     DEFVAR "BASE",4,,BASE,10
+    DEFVAR "CSTART",6,,CSTART,0
+    DEFVAR "CEND",4,,CEND,0
     DEFVAR "LATEST",6,,LATEST,name_LATEST ; points to last word defined...which will just
                                           ; happen to be self. We'll see if this works.
 
@@ -1343,6 +1356,7 @@ SECTION    .data
     align 4
 currkey: db 0,0,0,0  ; Current place in input buffer (next character to read).
 bufftop: db 0,0,0,0  ; Last valid data in input buffer + 1.
+biggens: dd 0        ; how biggens is the HERE compile space
 interpret_is_lit: db 0,0,0,0 ; 1 means "reading a literal"
 read_from_fd: db 0,0,0,0 ; 0=STDIN, etc.
 errmsg: db "PARSE ERROR: "

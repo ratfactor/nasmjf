@@ -1,8 +1,8 @@
 = NASM port of jonesFORTH
 
 This mostly a port from the original GNU Assembler (GAS) to the Netwide
-Assembler (NASM), but I have made a couple important changes. The biggest one
-is that nasmjf loads the `jonesforth.f` source file (containing the second half
+Assembler (NASM), but I have made a couple changes. The biggest one is that
+nasmjf loads the `jonesforth.f` source file (containing the second half
 of the interpreter written in Forth) upon startup.
 
 NOTE: This is a work in progress! I'm working on it in public. It currently
@@ -12,13 +12,11 @@ there's still a bug lurking in the interpreter somewhere.
 Otherwise, the assembly portion of this interpreter port is pretty much "done".
 It still needs cleanup.
 
-Here's a primitive (and kinda cheating) Hello World:
+Here's a Hello World:
 
 ----
-: h1 111 108 108 101 72 EMIT EMIT EMIT EMIT EMIT ;
-: h2 100 108 114 111 87 EMIT EMIT EMIT EMIT EMIT ;
-: s 32 EMIT ;
-h1 s h2
+$ nasmjf
+." Hello World"
 Hello World
 ----
 
