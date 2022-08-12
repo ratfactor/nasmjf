@@ -202,7 +202,7 @@ new previous - .
 
     VALUE is like VARIABLE, except that the result is a word
     which leaves its value on the stack like a constant
-    instead of its address. Unline a constant, it can be
+    instead of its address. Unlike a constant, it can be
     updated by another word, TO.
 
         10 VALUE foo   create foo, set to 10
@@ -321,4 +321,67 @@ HEX CSTART @ . CEND @ . CEND @ CSTART @ - .
 804E000 80B2000 64000
 
     Looking good. Now to catch the bad address being used in
-    COMMA...
+    COMMA. I added two compares and an ".oops" label:
+
+        _COMMA:
+        mov edi, [var_HERE]
+        cmp edi, [var_CSTART]
+        jl .oops
+        cmp edi, [var_CEND]
+        jg .oops
+        stosd
+        mov [var_HERE], edi
+        ret
+    .oops:
+        nop
+
+(gdb) break _COMMA.oops
+Breakpoint 2 at 0x8049343: file nasmjf.asm, line 707.
+(gdb) c
+Continuing.
+
+Breakpoint 2, _COMMA.oops () at nasmjf.asm:707
+707         nop
+(gdb) p var_HERE
+'var_HERE' has unknown type; cast it to its declared type
+(gdb) p (int)var_HERE
+$1 = 61368
+(gdb) p (int)var_CSTART
+$2 = 134537216
+(gdb) p (int)var_CEND
+$3 = 134627328
+
+    Okay, so HERE has been set to an invalid address
+    somehow. I wish backtraces worked. Then I'd be able to
+    see which word this came from.
+
+    I'm tempted to divide and conquer...and it looks like
+    if I stop execution of jonesforth.f right before the
+    definition of SEE, it doesn't segfault.
+
+    So I'll continue testing 'til there and then tackle the
+    problem head-on.
+
+    Anyway, where was I? Oh yeah, VALUE!
+
+    To quote myself:
+    
+    "VALUE is like VARIABLE, except that the result is a word
+    which leaves its value on the stack like a constant
+    instead of its address. Unlike a constant, it can be
+    updated by another word, TO."
+
+        10 VALUE foo   create foo, set to 10
+        20 TO foo      update foo to 20
+
+    Sounds good:
+
+10 VALUE foo
+foo .
+10
+20 TO foo
+foo .
+20
+
+    That's better. I'll continue with the word testing in
+    the next log.

@@ -69,7 +69,7 @@ cold_start: dd QUIT  ; we need a way to indirectly address the first word
 ;       check for eof OR a hard-coded limit down in KEY.
 
 jfsource:   db "jonesforth/jonesforth.f", 0h ; LOADJF path, null-terminated string
-%assign __lines_of_jf_to_read 704          ; LOADJF lines to read
+%assign __lines_of_jf_to_read 1005          ; LOADJF lines to read (of 1790)
 
 
 ; +----------------------------------------------------------------------------+
@@ -696,9 +696,15 @@ _FIND:
     NEXT
     _COMMA:
     mov edi, [var_HERE]
+    cmp edi, [var_CSTART]
+    jl .oops
+    cmp edi, [var_CEND]
+    jg .oops
     stosd                  ; puts the value in eax at edi, increments edi
     mov [var_HERE], edi
     ret
+.oops:
+    nop
 
     ; LBRAC and RBRAC ([ and ])
     ; Simply toggle the STATE variable (0=immediate, 1=compile)
