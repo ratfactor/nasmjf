@@ -1,0 +1,73 @@
+    We'll pick up right where we left off with a convenience
+    word to be used with VALUEs that works just like += in
+    "C-like" languages:
+
+        +TO adds to the value
+
+50 VALUE foo foo . 50
+100 TO foo foo . 100
+10 +TO foo foo . 110
+
+    And now some exciting introspection words:
+
+        ID.          prints name of word at address
+        ?HIDDEN      returns truthy value if word hidden
+        ?IMMEDATE    returns truthy value if word immediate
+
+LATEST @ ID.
+foo
+LATEST @ DUP DUP ID. SPACE ?IMMEDIATE . ?HIDDEN .
+foo 0 0
+LATEST @ @ DUP DUP ID. SPACE ?IMMEDIATE . ?HIDDEN .
+CFA> 0 0
+LATEST @ @ @ DUP DUP ID. SPACE ?IMMEDIATE . ?HIDDEN .
+ENDCASE 128 0
+
+    And
+
+        WORDS        prints all non-hidden words
+
+WORDS
+foo CFA> ENDCASE ENDOF OF CASE DUMP FORGET WORDS ?IMMEDIATE ?HIDDEN ID. +TO TO VALUE VARIABLE CELLS
+ALLOT CONSTANT ." S" C, ALIGN ALIGNED DEPTH WITHIN ? U. . .R U.R UWIDTH .S U. HEX DECIMAL SPACES PIC
+K TUCK NIP ( UNLESS REPEAT WHILE AGAIN UNTIL BEGIN ELSE THEN IF RECURSE [COMPILE] '.' '-' '0' 'A' '"
+' ')' '(' ';' ':' LITERAL NOT FALSE TRUE NEGATE SPACE CR BL '\n' MOD / LATEST CEND CSTART BASE S0 HE
+RE STATE O_NONBLOCK O_APPEND O_TRUNC O_EXCL O_CREAT O_RDWR O_WRONLY O_RDONLY SYS_BRK SYS_CREAT SYS_W
+RITE SYS_READ SYS_CLOSE SYS_OPEN SYS_EXIT F_LENMASK F_HIDDEN F_IMMED DOCOL R0 VERSION SYSCALL0 SYSCA
+LL1 SYSCALL2 SYSCALL3 EXECUTE CHAR HIDE IMMEDIATE DSP! DSP@ RDROP RSP! RSP@ R> >R CMOVE C@C! C@ C! -
+! +! @ ! INVERT XOR OR AND 0>= 0<= 0> 0< 0<> 0= >= <= > < <> = /MOD * - + 4- 4+ 1- 1+ ?DUP 2SWAP 2DU
+P 2DROP -ROT ROT OVER DUP SWAP DROP PRINTWORD . EMIT ; : EXIT HIDDEN ] [ , CREATE FIND LIT NUMBER >D
+FA >CFA KEY WORD INTERPRET TELL LITSTRING 0BRANCH BRANCH ' gtfo QUIT
+
+    The next one is pretty crazy. You would think that this
+    would just hide or "forget" the word CR. But it doesn't,
+    it forgets CR and *everything after* it!
+
+FORGET CR
+
+    So now WORDS should only show up to BL:
+
+WORDS
+PARSE ERROR: WORDS
+
+    Huh? Oh, ha ha ha. Right.
+
+    Time to reload.
+    Let's see that again, but maybe not "forget" quite so
+    much:
+
+LATEST @ ID.
+CFA>
+: foo ." Hello" ;
+foo
+
+Program received signal SIGSEGV, Segmentation fault.
+code_LITSTRING () at nasmjf.asm:28
+28          jmp [eax] ; Jump to whatever code we're now pointing at.
+
+    Argh! I can hardly believe this is the first time I've
+    tried compiling a word that contains a print string
+    statement.  But I guess so. So my LITSTRING assembly
+    port must contain a bug?
+
+
