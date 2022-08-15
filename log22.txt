@@ -68,6 +68,125 @@ code_LITSTRING () at nasmjf.asm:28
     Argh! I can hardly believe this is the first time I've
     tried compiling a word that contains a print string
     statement.  But I guess so. So my LITSTRING assembly
-    port must contain a bug?
+    port of the original must contain a bug?
 
+    Two nights later: debugging this with GDB *sucks*
+    because LITSTRING is written in assembly, but the
+    higher-level S" and ." are written in Forth, so it's
+    really hard to break right when I want to. On top of
+    that, trying to examine Forth constructs with GDB feels
+    like trying to eat soup with a fork. I know it's a
+    programmable fork and I could probably make it an
+    awesome soup fork, but I'd rather work on my soup
+    instead of my utensils.
 
+    Hmmm... you know what? The next word I was going to test
+    after FORGET is DUMP, which is supposed to give a hex
+    dump of memory.
+
+    Maybe I can use it to help debug LITSTRING and friends?
+
+    First, let's see how it works:
+
+        DUMP ( addr len -- )
+
+	DUMP is used to dump out the contents of memory,
+        in the 'traditional' hexdump format.
+
+    So we give it an address of memory and a number of bytes
+    to print. I wonder it will look like if I create a
+    simple word and display it?
+
+    This one has some repetition so maybe I can see the
+    pattern:
+
+: foobar 5 . 5 . ;
+foobar
+5 5
+
+    And let's dump 64 bytes of memory starting at the
+    laatest definition:
+
+LATEST @ 64 DUMP
+ 804EF20 C4 EE  4  8  6 66 6F 6F 62 61 72  0 5A 90  4  8 .....foobar.Z...
+ 804EF30 38 A1  4  8  5  0  0  0 2C E7  4  8 38 A1  4  8 8.......,...8...
+ 804EF40  5  0  0  0 2C E7  4  8 9C A1  4  8  0  0  0  0 ....,...........
+ 804EF50  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 ................
+
+    Gasp! Oh my goodness! It's beautiful. So handy. And DUMP
+    is less than 50 lines of Forth? 
+
+    Okay, my bitter annoyance is melting away.
+
+    I can totally read my word.
+
+    The little-endian data is annoying, but
+
+            C4 EE  4  8
+
+    is 804EEC4, so that'll be the link to the previous word.    
+
+    I really wish these were grouped by 4-byte chunks and
+    put into big-endian order...and then run ID. on each
+    recognizable address (since I know they're all
+    0804xxxx)...
+
+    Okay, after midnight now. 
+
+    I figured it out after verifying every single statement
+    in the compile-mode execution of S" and wouldn't you
+    know it was the very last statement that was wrecking
+    everything?
+
+    At the very end, it calls ALIGN to get the HERE pointer
+    to the next 4-byte boundary (after writing an address,
+    length, and string to memory).
+
+    ALIGN calls ALIGNED which uses "3 INVERT" to create a
+    mask to zero out the last two bits of an address.
+    Well, it turns out my INVERT word definition was doing
+    this:
+
+        not word [esp]
+
+    which gives you a 16 bit number. Instead, I needed this:
+
+        not dword [esp]
+
+    to operate on the full 32 bit number.
+
+    So let me take another moment here to rant for a second:
+    x86 terminoloy blows! A "word" should be the natural
+    address size on the architecture. But in x86 land,
+    "word" is stuck at 16 bits! So 32 bits is a dword and 64
+    bits is a qword and so on. Argh! This is not the first
+    time I've been bitten by this garbage.
+
+                ************************
+                *** "word" is a lie! ***
+                ************************
+
+    This would *definitely* explain all the segfaults since
+    ALIGN was masking off half of HERE and setting it to an
+    invalid address!
+
+    Do I dare get my hopes up?
+
+    Yeah, why not...
+
+JONESFORTH VERSION 1
+20643 CELLS REMAINING
+OK
+
+    Yes! It works!
+
+: foo ." Hello World!!!" ;
+foo
+Hello World!!!
+
+    Hello World, indeed.
+
+    As far as I know, my NASM interpreter port is complete
+    now. I'll continue with the word testing. And I have a
+    lot of cleanup to do. But this is a great night for
+    nasmjf!

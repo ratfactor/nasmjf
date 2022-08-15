@@ -69,7 +69,7 @@ cold_start: dd QUIT  ; we need a way to indirectly address the first word
 ;       check for eof OR a hard-coded limit down in KEY.
 
 jfsource:   db "jonesforth/jonesforth.f", 0h ; LOADJF path, null-terminated string
-%assign __lines_of_jf_to_read 1005          ; LOADJF lines to read (of 1790)
+%assign __lines_of_jf_to_read  1790          ; LOADJF lines to read (of 1790)
 
 
 ; +----------------------------------------------------------------------------+
@@ -251,7 +251,7 @@ DOCOL:
     ; TICK (or single quote: ') gets the address of the word
     ; that matches the next word of input text. Uses the same
     ; lodsd trick as LIT to grab the next word of input without
-    ; executing it. Only words while in compile state. (: ... ;)
+    ; executing it. Only works while in compile state. (: ... ;)
     ; It's not an immediate word, so it executes at run time,
     ; which is why we end up with the address of the next word
     ; (which was matched at compile time) to put on the stack!
@@ -284,8 +284,12 @@ DOCOL:
     ; Another primitive - this one is used to implement the string
     ; words in Forth (." and S"). I'll just port it for now, then
     ; test it later.
+    ; The lodsd "trick" (see also LIT) to load the next 4 bytes of
+    ; memory from the address at the current instruction pointer
+    ; (esi) into eax and then increment esi to skip over it so
+    ; NEXT doesnt try to execute it.
     DEFCODE "LITSTRING",9,,LITSTRING
-    lodsd                   ; get the length of the string
+    lodsd                   ; get the length of the string into eax
     push esi                ; push the address of the start of the string
     push eax                ; push it on the stack
     add esi, eax            ; skip past the string
@@ -1109,7 +1113,7 @@ _PRINTWORD:
     NEXT
 
     DEFCODE "INVERT",6,,INVERT
-    not word [esp]
+    not dword [esp]
     NEXT
 
 
