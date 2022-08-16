@@ -190,3 +190,5 @@ Hello World!!!
     now. I'll continue with the word testing. And I have a
     lot of cleanup to do. But this is a great night for
     nasmjf!
+
+    I'll start the next log with CASE statement testing

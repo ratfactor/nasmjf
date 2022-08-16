@@ -1,0 +1,72 @@
+    Well, now that I can actually run jonesforth.f with this
+    interpreter port, it "only" remains to test the rest of
+    the words defined in Forth. Then I've got some cleaning
+    up to do in the assembly.
+
+    It looks like I'm roughly halfway through testing what
+    jonesforth.f provides. So there's quite a bit left.
+
+    Next up is CASE OF...ENDOF... ENDCASE which lets you
+    do different things based on comparison with a value on
+    the stack:
+
+JONESFORTH VERSION 1
+20643 CELLS REMAINING
+OK
+
+: foo CASE
+    1 OF ." One" ENDOF
+    2 OF ." Two" ENDOF
+    3 OF ." Three" ENDOF
+ENDCASE ;
+
+1 foo
+One
+2 foo
+Two
+3 foo
+Three
+
+    That is, dare I say, quite readable compared to a lot of
+    the Forth we've seen so far.
+
+    Next is CFA>, which is "the opposite of >CFA." Let's see
+    about that. I'll use >CFA to get the code word pointer
+    address from the LATEST word address, then get back to
+    the original word address with CFA> and see if it's right:
+
+HEX
+LATEST @ DUP . ID.
+957ED74 foo
+LATEST @ >CFA DUP .
+957ED7C
+CFA> DUP . ID.
+957ED74 foo
+
+    Of course, we can do this all in one go as well:
+
+LATEST @ >CFA CFA> ID.
+foo
+
+    What's wild is that >CFA can just do a little address
+    math and skip forward to the codeword. But CFA> has to
+    search the entire dictionary for the correct word.
+
+    I feel like you should be able to scan backward to the
+    word start. But I can see how it would be hard to be
+    entirely sure it's accurate (you could use the length
+    field as a kind of "checksum" for the name field, but
+    that wouldn't be a *guarantee*).
+
+    Oooooh, the next one is bound to be a new favorite: SEE
+    decompiles a word!
+
+SEE foo
+: foo 1 OVER = 0BRANCH ( 20 ) DROP S" One" TELL BRANCH ( 74 ) 2 OVER = 0BRANCH
+( 20 ) DROP S" Two" TELL BRANCH ( 40 ) 3 OVER = 0BRANCH ( 24 ) DROP S" Three"
+TELL BRANCH ( 8 ) DROP ;
+
+    That's awesome! I love how it prints the strings and
+    everthing.
+
+    
