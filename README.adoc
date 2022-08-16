@@ -1,24 +1,39 @@
-= NASM port of jonesFORTH
+= nasmjf - a NASM port of JONESFORTH
 
-This mostly a port from the original GNU Assembler (GAS) to the Netwide
-Assembler (NASM), but I have made a couple changes. The biggest one is that
-nasmjf loads the `jonesforth.f` source file (containing the second half
-of the interpreter written in Forth) upon startup.
+This is a fully-functioning Forth interpreter faithfully ported from the original
+by Richard W.M. Jones:
 
-NOTE: This is a work in progress! I'm working on it in public. It currently
-segfaults if you try to run the entire jonesforth.f startup file. So clearly
-there's still a bug lurking in the interpreter somewhere.
+https://rwmj.wordpress.com/2010/08/07/jonesforth-git-repository/
 
-Otherwise, the assembly portion of this interpreter port is pretty much "done".
-It still needs cleanup.
-
-Here's a Hello World:
+You can see the full original source in the `jonesforth/` directory in this repo.
 
 ----
 $ nasmjf
-." Hello World"
+JONESFORTH VERSION 1
+20643 CELLS REMAINING
+OK ." Hello World"
 Hello World
 ----
+
+This repo is a port from the original GNU Assembler (GAS) implementation to
+the Netwide Assembler (NASM). The biggest difference between the two assemblers
+is AT&T-style GAS syntax vs. Intel-style NASM syntax. But I have made a couple
+changes. The biggest one is that `nasmjf` loads the `jonesforth.f` source file
+(containing the second half of the interpreter written in Forth) upon startup.
+
+See "Loads Jones's FORTH source on start" below.
+
+
+
+== Current status
+
+The assembly portion of this interpreter port is pretty much "done". I'm currently
+testing the rest of the built-in words and then I'll shift to cleaning up and
+improving the comments and structure of the assembly source.
+
+
+
+== Why does this exist?
 
 Check out the log text files. They're my rambling learning-in-public and
 thinking "out loud" way of describing what I'm up to. The latest log will probably
@@ -31,9 +46,10 @@ I also have a placeholder for future notes and rambling thoughts about the proje
 http://ratfactor.com/nasmjf
 
 
-== Loads JonesFORTH source on start
 
-The implementation of JonesFORTH is in two parts: an assembly language
+== Loads Jones's FORTH source on start
+
+The implementation of JONESFORTH is in two parts: an assembly language
 "bootstrap" and additional essential word definitions written in FORTH.
 
 This NASM contains a hard-coded path to the `jonesforth.f` FORTH source file
@@ -44,6 +60,8 @@ If you wish to disable or simply examine this change, search for lines with
 comments containing the string `LOADJF`. You can comment out most of these
 lines. A few will need to remain. Figuring out which is "left as an exercise
 for the reader", as they say.
+
+
 
 == Compiling and running
 
@@ -63,6 +81,7 @@ $ ./nasmjf
 'A' EMIT
 A
 ```
+
 
 == GNU Debugger
 
@@ -108,6 +127,7 @@ Create GDB commands
         p $arg1
     end
 
+
 == GNU Screen
 
 See the file `screenrc` in this repo to see the current convenience setup.
@@ -149,6 +169,8 @@ let mapleader = ","
 " run my 'r' script for nasmjf.asm
 nnoremap <leader>r :!r<cr>
 ----
+
+
 
 == PUBLIC DOMAIN
 
