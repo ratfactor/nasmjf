@@ -69,4 +69,46 @@ TELL BRANCH ( 8 ) DROP ;
     That's awesome! I love how it prints the strings and
     everthing.
 
-    
+    The next thing are anonymous "no name" words. When you
+    define them with :NONAME, they leave the address of
+    their codeword on the stack. In Forth terminology, the
+    address of a codeword is an "execution token". In the
+    21st Century, we'd probably call them pointers.
+
+    Anyway, you can store an execution token like any other
+    value. And EXECUTE calls one:
+
+:NONAME ." I have no name: " TELL CR ;
+VALUE noname
+noname .
+160980384
+." Hello" noname EXECUTE
+HelloI have no name: .
+S" Hello" noname EXECUTE
+I have no name: Hello
+
+    Next we have THROW and CATCH. I was not expecting
+    exception handling!
+
+    The THROW statement is easy to use - just give it a
+    number to throw as the exception.
+
+    But CATCH needs some very specific stuff:
+
+        : <word2> ['] <word1> CATCH IF ... THEN ;
+
+    The ['] primitive gets the execution token of a word
+    (:NONAME uses it).
+
+: foo ." Foo! " 13 = IF ." Bah!" 5 THROW THEN ." Done." ;
+12 foo
+Foo! Done.
+13 foo
+Foo! Bah!UNCAUGHT THROW 5
+
+: test-foo ['] foo CATCH ?DUP IF ."  Foo threw " . DROP THEN ."  Test done." ;
+12 test-foo
+Foo! Done. Test done.
+13 test-foo
+Foo! Bah! Foo threw 5 Test done.
+
