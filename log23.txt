@@ -51,7 +51,7 @@ foo
     What's wild is that >CFA can just do a little address
     math and skip forward to the codeword. But CFA> has to
     search the entire dictionary for the correct word.
-
+ 
     I feel like you should be able to scan backward to the
     word start. But I can see how it would be hard to be
     entirely sure it's accurate (you could use the length
@@ -112,3 +112,116 @@ Foo! Done. Test done.
 13 test-foo
 Foo! Bah! Foo threw 5 Test done.
 
+    i spent another night reading through the implementation
+    of THROW. It's funny how *using* CATCH and THROW is
+    inversely proportional to the complexity of those two
+    words.
+
+    This is the first time something really interesting is
+    done with the return stack.
+
+    This is also an excellent example of a language feature
+    that seems like more trouble than it's worth in a small
+    demonstration. But when you actually need a feature like
+    this in a decent-sized codebase, it will seem trivial
+    compared to the alternatives.
+
+    Having said that, reading an implementation like THROW
+    is just *nuts*. Cool how it works, though.
+
+    Next is another one that takes advantage of the return
+    stack: PRINT-STACK-TRACE.
+
+: foo PRINT-STACK-TRACE ;
+foo
+foo+0
+: bar foo ;
+: baz bar ;
+baz
+foo+0 bar+0 baz+0
+
+    Beautiful.
+
+    Then JONESFORTH has support for reading the commandline
+    arguments, which is very cool.
+
+    It's easy enough to use ARGC and ARGV, but I'm getting
+    to the point where the usability of bare Linux input for
+    the Forth "REPL" is pretty painful. I must have re-typed
+    my BEGIN WHILE REPEAT loop a dozen times.
+
+    So I'm doing two things:
+
+    1. Using CAPSLOCK while typing Forth commands.
+    2. Installed "rlwrap" (Readline wrapper).
+
+    rlwrap is super awesome and easy to use. I'll be darned
+    if I can figure out why `apk search rlwrap` doesn't work
+    in Alpine Linux. It shows up as a community package when
+    I do a web search.
+
+    But whatever, that's what source is for:
+
+        $ doas apk add readline-dev
+        $ lynx github.com...
+        $ tar -xf rlwrap...tar.gz
+        $ cd rlwrap...
+        $ ./configure
+        $ make
+        $ doas make install
+
+    Now I've added this alias:
+
+        alias f='rlwrap /home/dave/nasmjf/nasmjf'
+
+    And what a relief! I can use arrow keys for editing and
+    history, etc.
+
+eeepc:~/nasmjf$ f
+JONESFORTH VERSION 1
+20643 CELLS REMAINING
+OK
+ARGC .
+1
+0 ARGV TELL
+/home/dave/nasmjf/nasmjf
+
+    Again, that's my alias 'f' providing the full path to
+    the nasmjf executable we're seeing there as the 0th
+    argument.
+
+    Now for the simple loop it took at least a dozen tries
+    to get right (often due to simple typos and some of them
+    causing nasmjf to segfault!) and now I am *so* grateful
+    that rlwrap gives me command history.
+
+eeepc:~/nasmjf$ f foo bar
+JONESFORTH VERSION 1
+20643 CELLS REMAINING
+OK
+
+ARGC .
+3
+
+: PRINT-ARGS 0 BEGIN DUP ARGC < WHILE DUP DUP . ARGV TELL CR 1+ REPEAT ;
+PRINT-ARGS
+0 /home/dave/nasmjf/nasmjf
+1 foo
+2 bar
+
+    Yes!
+
+    And by the way, I have no doubt I'll get better at it,
+    but writing that loop felt way harder than it should
+    have been. The way you have to keep DUPing because
+    even comparisons eat the values on the stack...
+
+    I get it. But I'm not sure I like it.
+
+    Also, having capslock on makes my GNU screen shortcuts
+    and vim both go crazy when i forget to toggle it off
+    when i'm done typing Forth. :-(
+
+    But rlwrap is the best. I *highly* recommend it for use
+    with this or any other application that doesn't have
+    command history, etc.
