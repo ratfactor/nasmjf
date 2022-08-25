@@ -4,4 +4,4 @@ nasmjf.o
 nasmjf
 *.swo
 *.swp
-hardcopy.0
+hardcopy.*
