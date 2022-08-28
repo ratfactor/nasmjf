@@ -5,3 +5,4 @@ nasmjf
 *.swo
 *.swp
 hardcopy.*
+screenlog*

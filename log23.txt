@@ -225,3 +225,47 @@ PRINT-ARGS
     But rlwrap is the best. I *highly* recommend it for use
     with this or any other application that doesn't have
     command history, etc.
+
+    Related to arguments (because Linux leaves it all in our
+    application's memory in the stack memory space,
+    evidently) are the environment variables.
+
+    JONESFORTH defines ENVIRON to get the address. Also the
+    utility STRLEN to get the length of null-terminated
+    strings, a.k.a. "C strings".
+
+ENVIRON @ DUP STRLEN TELL
+SHELL=/bin/bash
+
+    Unlike the result from ARGV, ENVIRON just gives us the
+    address of the first item. So I had to DUP and STRLEN to
+    get the string ready for printing with TELL.
+
+    The next item is 4 bytes after that and so on.
+
+    I guess you could write a word that gets the number of
+    environment variables available and another that gets
+    one from a particular position.
+
+    I started writing those words, but it was late and I was
+    tired. Eventually, I just wanted to see more, so I
+    printed out a big chunk of memory where args and
+    environment are stored:
+
+0 ARGV DROP 128 DUMP
+BFECBA8E 2E 2F 6E 61 73 6D 6A 66  0 66 6F 6F  0 62 61 72 ./nasmjf.foo.bar
+BFECBA9E  0 53 48 45 4C 4C 3D 2F 62 69 6E 2F 62 61 73 68 .SHELL=/bin/bash
+BFECBAAE  0 43 48 41 52 53 45 54 3D 55 54 46 2D 38  0 54 .CHARSET=UTF-8.T
+BFECBABE 45 52 4D 43 41 50 3D 53 43 7C 73 63 72 65 65 6E ERMCAP=SC|screen
+BFECBACE 7C 56 54 20 31 30 30 2F 41 4E 53 49 20 58 33 2E |VT 100/ANSI X3.
+BFECBADE 36 34 20 76 69 72 74 75 61 6C 20 74 65 72 6D 69 64 virtual termi
+BFECBAEE 6E 61 6C 3A 44 4F 3D 5C 45 5B 25 64 42 3A 4C 45 nal:DO=\E[%dB:LE
+BFECBAFE 3D 5C 45 5B 25 64 44 3A 52 49 3D 5C 45 5B 25 64 =\E[%dD:RI=\E[%d
+
+    I'll end this particular log file with an appropriate
+    sign-off with another new word definition:
+
+JONESFORTH VERSION 1
+20643 CELLS REMAINING
+OK
+BYE

@@ -1,0 +1,53 @@
+    This log starts with neat stuff: checking and allocating
+    memory!
+
+    Memory alloction in Forth couldn't be less complicated.
+    The application has some amount of memory upon startup.
+    As you use it for variables, constants, strings, and new
+    word definitions, the HERE pointer advances to the next
+    unused spot.
+
+    You check how much memory is left with UNUSED and
+    request more with the deliciously retro-sounding command
+    MORECORE.
+
+    In this Linux interpreter, memory checking and
+    allocation is handled with the brk system call.
+
+    The "break" address (end of memory allocated for us by
+    Linux) minus HERE gives us the amount of unused memory:
+
+JONESFORTH VERSION 1
+20643 CELLS REMAINING
+OK
+GET-BRK .
+151916544
+HERE .
+134522628
+UNUSED .
+20643
+
+    That checks out. Let's add a bit more:
+
+1024 MORECORE
+UNUSED .
+21667
+
+    Sweet!
+
+    I did not have very much fun with the file io words.
+    Though I did manage to create an empty file with:
+
+S" foo.txt" R/W CREATE-FILE
+CLOSE-FILE
+BYE
+$ ls
+foo.txt
+
+    But I'm not sure what to do with a file descriptor for
+    writing. Words like TELL are hard-coded to use STDOUT.
+
+    Eh, no big deal. Learning how to read and write files is
+    not one of goals here. :-)
+
+    But it looks like
