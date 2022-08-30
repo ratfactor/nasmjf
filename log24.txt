@@ -50,4 +50,61 @@ foo.txt
     Eh, no big deal. Learning how to read and write files is
     not one of goals here. :-)
 
-    But it looks like
+    But you know what _is_ a big deal? The proof-of-concept
+    assembler implemented near the end of jonesforth.f:
+
+        ;CODE - ends a colon word like usual, but it
+                appends a machine code NEXT (just like
+                our NEXT macro in NASM) and then alters
+                the "codeword" link in the just-compiled
+                word to point to the "data" we compiled
+                into the word definition.
+
+    You use it like so:
+
+        : foo <machine code/assembly> ;CODE
+
+    Then Jones defines some assembly mnemonics for things
+    like the registers EAX, ECD, EDX, etc. and assembly
+    mnemonics for PUSH and POP.
+
+    Finally, a fun instruction for the Pentium (and later)
+    x86 CPUs, RDTSC that returns 64 bits worth of clock
+    cycles.
+
+    The assembled word that makes use of the mnemonics looks
+    like this:
+
+
+        : RDTSC ( -- lsb msb )
+                RDTSC        ( writes the result in %edx:%eax )
+                EAX PUSH     ( push lsb )
+                EDX PUSH     ( push msb )
+        ;CODE
+
+    Let's try it!
+
+RDTSC . .
+7 193238564
+RDTSC DROP RDTSC DROP SWAP - .
+8815
+RDTSC DROP RDTSC DROP SWAP - .
+9068
+
+    I'm dropping the most significant bytes since I'm
+    measuring smaller amounts of time (which wouldn't be
+    correct if the least significant bytes rolled over!)
+
+    Apparently a couple instructions takes over 8,000 CPU
+    cycles? Very interesting!
+
+    
+
+
+
+
+
+
+
+
+
