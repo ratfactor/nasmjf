@@ -98,13 +98,83 @@ RDTSC DROP RDTSC DROP SWAP - .
     Apparently a couple instructions takes over 8,000 CPU
     cycles? Very interesting!
 
-    
+    Well, I could try adding some new x86 instructions, I
+    suppose. I thought about it. But I think the
+    proof-of-concept is plenty.
+
+    One thing's for sure, Forth with an assembler is surely
+    the most flexible programming system ever.
+
+    The final trick in the jonesforth.f file is INLINE:
 
 
+	INLINE can be used to inline an assembler
+        primitive into the current (assembler) word.
 
+	For example:
 
+		: 2DROP INLINE DROP INLINE DROP ;CODE
 
+    Looking at the implementation, it literally copies the
+    machine code from the word to be inlined until the next
+    macro (which is no longer needed since the code can just
+    keep running to the next word and so on.
 
+    What's wild is that this is exactly what I was
+    contemplating when I first learned how the "threaded"
+    code in Forth works. (Threaded code is great when memory
+    and disk space are at an absolute premium. But on our
+    modern machines, a lot of what Forth does to save space
+    seems downright silly.)  I thought, "why couldn't I just
+    copy the contents of these words rather than their
+    addresses?" Especially since most of the words are so
+    tiny, often just a handful of machine instructions. It
+    seems silly to JMP to them!
 
+    Anyway, I want to test this out. Reading a hex dump is a
+    pain, but I figure with a ton of repetition, I'll be
+    able to see if the code is, indeed, inlined:
 
+JONESFORTH VERSION 1
+20643 CELLS REMAINING
+OK
+: 6DUP INLINE DUP INLINE DUP INLINE DUP INLINE DUP INLINE DUP INLINE DUP ;CODE
+42 6DUP .S
+42 42 42 42 42 42 42
 
+    It works, now I'll make a silly word to dump memory at
+    a word definition so I can compare them:
+
+: foo WORD FIND 64 DUMP ;
+foo DUP
+ 804A250 40 A2  4  8  3 44 55 50  6 94  4  8 50 A2  4  8 @....DUP....P...
+ 804A260  4 4F 56 45 52 90 90 90  D 94  4  8 5C A2  4  8 .OVER.......\...
+ 804A270  3 52 4F 54 15 94  4  8 6C A2  4  8  4 2D 52 4F .ROT....l....-RO
+ 804A280 54 90 90 90 1E 94  4  8 78 A2  4  8  5 32 44 52 T.......x....2DR
+foo 6DUP
+ A011D74 D8 1C  1  A  4 36 44 55 50  0  0  0 84 1D  1  A .....6DUP.......
+ A011D84 8B  4 24 50 8B  4 24 50 8B  4 24 50 8B  4 24 50 ..$P..$P..$P..$P
+ A011D94 8B  4 24 50 8B  4 24 50 AD FF 20  0 74 1D  1  A ..$P..$P.. .t...
+ A011DA4  3 66 6F 6F 5A 90  4  8 C4 A0  4  8 48 A1  4  8 .fooZ.......H...
+
+    Yeah, clearly the $P bit is repeated six times. And it
+    looks like each DUP is 4 bytes of machine code.
+
+        8B 04 24 50
+
+    Oh yeah, I can check that out with GDB, huh?
+
+(gdb) disassemble /r code_DUP
+Dump of assembler code for function code_DUP:
+   0x08049406 <+0>:     8b 04 24        mov    eax,DWORD PTR [esp]
+   0x08049409 <+3>:     50      push   eax
+   0x0804940a <+4>:     ad      lods   eax,DWORD PTR ds:[esi]
+   0x0804940b <+5>:     ff 20   jmp    DWORD PTR [eax]
+End of assembler dump.
+
+    Yup, that checks out.
+
+    Well, gosh. This concludes jonesforth/jonesforth.f.
+
+    Next, I'll take a look at the test files in the
+    jonesforth/ dir.
