@@ -178,3 +178,112 @@ End of assembler dump.
 
     Next, I'll take a look at the test files in the
     jonesforth/ dir.
+
+    Next night: okay, so jonesforth/Makefile has this test
+    target:
+    
+        test_%.test: test_%.f jonesforth
+                @echo -n "$< ... "
+                @rm -f .$@
+                @cat <(echo ': TEST-MODE ;') jonesforth.f $< <(echo 'TEST') | \
+                  ./jonesforth 2>&1 | \
+                  sed 's/DSP=[0-9]*//g' > .$@
+                @diff -u .$@ $<.out
+                @rm -f .$@
+                @echo "ok"
+
+    So make isn't my favorite thing, but I understand that
+    it's going to run a selected <test>.f file and write the
+    output to <test>.test and diff it with <test>.out, which
+    contains the expected output.
+
+    The 'TEST-MODE' word definition simply causes JONESFORTH
+    to not display its welcome message. Hmmm...that's a
+    little tricky because my port runs that before anything
+    from STDIN. There are ways to make that work, but I'm
+    thinking I'll just make my test script ignore the
+    welcome instead.
+
+    Then the 'TEST' invocation runs whatever test word was
+    defined in the <test>.f file. Which it could have done
+    itself. But at least I can do that like the makefile
+    does!
+
+    Okay, let's see if we can do some basic script input
+    first:
+
+cat <(echo 'CR ." BEEP BOOP. Test mode activated." CR ') | ./nasmjf
+
+JONESFORTH VERSION 1
+20643 CELLS REMAINING
+OK
+BEEP BOOP. Test mode activated.
+$
+
+    LOL. Awesome.
+
+    I sometimes forget that this is now a "real" program and
+    it would't take much to make it a somewhat useful UNIX
+    citizen...
+
+    Anyway, now I just need to redirect each test file in
+    followed by the TEST invocation.
+
+    I'll use sed to skip the welcome message (and my silly
+    "test mode" message, which I'm totally keeping in
+    there).
+
+    Here's what the output looks like (condensed a bit to
+    make it a bit more compact to look at:
+
+eeepc:~/nasmjf$ ./test.sh
+2DROP: 2 1
+t e s t i n g
+0 1 0 1 1 0
+1 0 1 0 0 1
+1 1 1 0 1 0 1 1 0
+1 1 1 1 0 1 0 0 1
+1 0 1 0 1
+0 1 0 1 0
+0 1 0
+1 0 1
+0 0 1
+1 0 0
+0 1 1
+1 1 0
+TEST4+0 TEST3+8 CATCH+28 CATCH ( DSP=3218223136 ) TEST2+8 TEST+0
+TEST4+0 TEST3+20 CATCH+28 CATCH ( DSP=3218223136 ) TEST2+8 TEST+0
+TEST3 threw exception 26
+TEST4+0 TEST3+8 TEST2+68 TEST+0
+TEST4+0 TEST3+20 TEST2+68 TEST+0
+UNCAUGHT THROW 26
+123
+-127
+7FF77FF7
+-1111111111101110111111111110111
+7FF77FF7
+test_read_file.f.out: ERRNO=2
+0
+42 42
+0
+1 2
+1 2 1
+2 1 3
+1 3 2
+2 1
+4 3 4 3 2 1
+2 1 4 3
+0
+TEST4+0 TEST3+0 TEST2+0 TEST+0
+3
+TEST4+0 TEST3+32 TEST2+0 TEST+0
+TEST4+0 TEST3+0 TEST2+4 TEST+0
+3
+TEST4+0 TEST3+32 TEST2+4 TEST+0
+
+    As far as I know, that's all good except the failure to
+    open "test_read_file.f.out" which will be due to the
+    fact that I'm running the tests up a directory from
+    where they would normally be run.
+
+
