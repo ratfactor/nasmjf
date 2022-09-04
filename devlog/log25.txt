@@ -1,0 +1,43 @@
+    Okay, I guess I lied. I'm back sooner than I thought.
+
+    In addition to cleaning up, I've made a much-needed
+    improvement. I now load _all_ of jonesforth.f upon
+    start, so there's no need for the line limit. So I'm
+    properly checking for EOF while reading that file and
+    closing it.
+
+    It takes a lot of lines of assembly to produce a nice
+    error message. See the label ".loadjf_open_fail" in
+    nasmjf.asm for the listing. (It's not complicated, just
+    long.)
+
+    Here's how it looks:
+
+$ nasmjf/nasmjf
+ERROR Could not open 'jonesforth/jonesforth.f'.
+
+    But it still runs fine from the nasmjf/ dir:
+
+$ cd nasmjf
+$ ./nasmjf
+JONESFORTH VERSION 48
+20643 CELLS REMAINING
+OK
+
+    And I really love being able to run the test suite to
+    make sure I haven't messed anything up!
+
+$ ./test.sh
+Testing: jonesforth/test_assembler.f
+Testing: jonesforth/test_comparison.f
+Testing: jonesforth/test_exception.f
+Testing: jonesforth/test_number.f
+Testing: jonesforth/test_read_file.f
+Testing: jonesforth/test_stack.f
+Testing: jonesforth/test_stack_trace.f
+
+    In theory, my Forth source reading mechanism could be
+    used _within_ Forth to load source files on the fly. I
+    think I'll leave that as an "exercise for the reader" as
+    they say. :-)
+

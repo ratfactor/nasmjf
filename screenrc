@@ -44,5 +44,6 @@ bind h hardcopy -h
 screen bash
 #
 # This window contains the source and handy references.
-screen bash -c "vim nasmjf.asm jonesforth/jonesforth.f"
+# (This changes as what I'm working on changes.)
+screen bash -c "vim nasmjf.asm jonesforth/jonesforth.S devlog/log25.txt"
 

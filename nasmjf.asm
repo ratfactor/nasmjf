@@ -1,22 +1,21 @@
 ; Dave's NASM port of jonesFORTH
 ;
-; This port will have explanitory comments, but for the full
-; "JONESFORTH experience", read the original source files which
+; This port will have explanitory comments in my own words.
+;
+; For the full "JONESFORTH experience", read the original source files which
 ; you should find in this repo at:
 ;
 ;     jonesforth/jonesforth.S
 ;     jonesforth/jonesforth.f
 ; 
-; Register use:
-;       esi - next forth word address to execute
-;       ebp - return stack for forth word addresses
-;       esp - "normal" stack for params
+%assign NASMJF_VERSION 48 ; One more than JONESFORTH
 
-%assign NASMJF_VERSION 0x001
-
-; JONESFORTH gets the system call numbers by including asm/unistd.h.
-; But I'm just gonna hardcode them here. Found in Linux source
-; in file arch/x86/include/asm/unistd_32.h
+; +----------------------------------------------------------------------------+
+; | System Call Numbers                                                        |
+; +----------------------------------------------------------------------------+
+; JONESFORTH uses an external include file which you may not have. I'm just
+; gonna hardcode them here. I can't imagine these changing often.
+; (I found them in Linux source in file arch/x86/include/asm/unistd_32.h)
 %assign __NR_exit  1
 %assign __NR_open  5
 %assign __NR_close 6
@@ -25,6 +24,12 @@
 %assign __NR_creat 8
 %assign __NR_brk   45
 
+; Guide to register use:
+;
+;       esi - Next forth word address to execute
+;       ebp - Return stack pointer for Forth word addresses
+;       esp - THE STACK (aka "parameter stack") pointer
+;
 ; +----------------------------------------------------------------------------+
 ; | The NEXT Macro                                                             |
 ; +----------------------------------------------------------------------------+
@@ -60,27 +65,22 @@ return_stack_top: resb 4
 data_segment: resb 1024 
 buffer:       resb buffer_size
 emit_scratch: resb 4 ; note: JF had this in .data as .space 1
-line_count:   resb 4
 
 SECTION .data
 
 cold_start: dd QUIT  ; we need a way to indirectly address the first word
 
-; This is a major difference with my port: reading the jonesforth.f
-; source upon startup. Search for 'LOADJF' in this file to see all
-; of the places where I made changes or additions to support this.
-; Note the parts which allow the loading of N lines of jonesforth.f
-; source on startup (__lines_of_jf_to_read).
-
-; TODO: currently, lines set to 1790 is a hack! Instead, I should
-;       check for eof OR a hard-coded limit down in KEY.
+; +----------------------------------------------------------------------------+
+; | "LOADJF" - Load jonesforth.f on start                                      |
+; +----------------------------------------------------------------------------+
+; This is a major difference with my port. Search for 'LOADJF' in this file to
+; see all ; of the places where I made changes or additions to support this.
 ;
 ; This path is relative by default to make it easy to run nasmjf from
 ; the repo dir. But you can set it to an absolute path to allow running
 ; from any location.
 jfsource:     db "jonesforth/jonesforth.f", 0h ; LOADJF path, null-terminated
 jfsource_end: db 0h                            ; LOADJF null-terminated string
-%assign __lines_of_jf_to_read  1790            ; LOADJF lines to read (of 1790)
 
 
 ; +----------------------------------------------------------------------------+
@@ -121,13 +121,11 @@ _start:
     mov eax, __NR_brk         ; syscall brk again
     int 0x80
 
-    ; Process jonesforth.f upon startup.
+    ; "LOADJF" Process jonesforth.f upon startup.
     ; 'jfsource' is the string with the file path for jonesforth.f
-    ; open jonesforth.f
     mov ecx, 0                ; LOADJF read only flag for open
     mov ebx, jfsource         ; LOADJF path for open
     mov eax, __NR_open        ; LOADJF open syscall
-    mov dword [line_count], 0 ; LOADJF start line at 0, this makes test come out right
     int 80h                   ; LOADJF fd now in eax
     cmp eax, 0                ; LOADJF fd < 0 is an error!
     jl .loadjf_open_fail
@@ -161,10 +159,11 @@ _start:
     mov edx, (loadjf_fail_msg_end2 - loadjf_fail_msg2)
     mov eax, __NR_write        ; LOADJF
     int 80h                    ; LOADJF
-    ; Exit with beauty and grace
-    mov ebx, 0    ; exit code
-    mov eax, 1    ; exit syscall
-    int 80h       ; call kernel
+    mov ebx, 1                 ; LOADJF exit code and fall through to exit
+
+exit_with_grace_and_beauty: ; (don't forget to set ebx to exit code)
+    mov eax,__NR_exit       ; syscall: exit
+    int 0x80                ; invoke syscall
 
 ; +----------------------------------------------------------------------------+
 ; | Forth DOCOL implementation                                                 |
@@ -476,6 +475,9 @@ SECTION .text
         ; This should really be called "char" because it gets a character of
         ; input, not a "key". It's easy to imagine the historical
         ; implementation fitting the name, though.
+        ;
+        ; LOADJF: This has my "hack" to make KEY read from file descriptors
+        ;         other than STDIN so we can read jonesforth.f on start.
     DEFCODE "KEY",3,,KEY
     call _KEY
     push eax        ; push return value on stack
@@ -486,21 +488,6 @@ _KEY:
     jge .get_more_input
     xor eax, eax
     mov al, [ebx]               ; get next key from input buffer
-
-    mov ecx, [line_count]       ; LOADJF -1 means we are 'done' with jf source
-    cmp ecx, 0                  ; LOADJF
-    jl .continue_with_key       ; LOADJF Yup, 'done'.
-    cmp al, `\n`                ; LOADJF Not done, keep counting lines of jf source
-    jne .continue_with_key      ; LOADJF Not a newline, keep reading input
-    inc ecx                     ; LOADJF Newline! Increment line count
-    mov [line_count], ecx       ; LOADJF See if we're done
-    cmp ecx, __lines_of_jf_to_read ; LOADJF Compare lines with our limit
-    jl  .continue_with_key      ; LOADJF Less than limit, keep reading
-    mov dword [line_count], -1  ; LOADJF Over limit, set to 'done' (see test above)
-    ; TODO: close source file   ; LOADJF
-    ; TODO: check for EOF!
-    mov dword [read_from_fd], 0 ; LOADJF change the read-from fd to STDIN
-    mov dword [bufftop], buffer ; LOADJF force it to "run out" of buffered input
 
 .continue_with_key:
     inc ebx
@@ -521,10 +508,17 @@ _KEY:
     mov [bufftop],ecx
     jmp _KEY
 
-.eof: ; Error or end of input: exit the program.
-    xor ebx,ebx
-    mov eax,__NR_exit       ; syscall: exit
-    int 0x80
+.eof: ; Error or end of input
+    cmp dword [read_from_fd], 0 ; LOADJF If we were reading from STDIN (0)...
+    je .eof_stdin               ; LOADJF ...then exit the program normally.
+    mov ebx, [read_from_fd]     ; LOADJF Otherwise, close the file.
+    mov eax, __NR_close         ; LOADJF
+    int 80h
+    mov dword [read_from_fd], 0 ; LOADJF Change the read-from fd to STDIN.
+    jmp .get_more_input         ; LOADJF And continue reading!
+.eof_stdin: ; Exit peacefully!
+    xor ebx,ebx             ; set ebx to exit with no error (0)
+    jmp exit_with_grace_and_beauty
 
 
         ; ***** TCFA *****
@@ -1385,6 +1379,7 @@ _PRINTWORD:
     DEFVAR "BASE",4,,BASE,10
     DEFVAR "CSTART",6,,CSTART,0
     DEFVAR "CEND",4,,CEND,0
+    DEFVAR "READFROM",8,,READFROM,read_from_fd ; LOADJF - make available to Forth???
     DEFVAR "LATEST",6,,LATEST,name_LATEST ; points to last word defined...which will just
                                           ; happen to be self. We'll see if this works.
 
@@ -1395,9 +1390,8 @@ SECTION    .data
     align 4
 currkey: db 0,0,0,0  ; Current place in input buffer (next character to read).
 bufftop: db 0,0,0,0  ; Last valid data in input buffer + 1.
-biggens: dd 0        ; how biggens is the HERE compile space
 interpret_is_lit: db 0,0,0,0 ; 1 means "reading a literal"
-read_from_fd: db 0,0,0,0 ; 0=STDIN, etc.
+read_from_fd: dd 0 ; 0=STDIN, etc.
 errmsg: db "PARSE ERROR: "
 errmsgend:
 errmsgnl: db `\n`
