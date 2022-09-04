@@ -6,3 +6,4 @@ nasmjf
 *.swp
 hardcopy.*
 screenlog*
+jonesforth/*.myout

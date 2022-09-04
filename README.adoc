@@ -7,12 +7,21 @@ https://rwmj.wordpress.com/2010/08/07/jonesforth-git-repository/
 
 You can see the full original source in the `jonesforth/` directory in this repo.
 
+Assemble and run like so:
+
 ----
-$ nasmjf
+$ nasm -f elf32 -g -o nasmjf.o nasmjf.asm
+$ ld nasmjf.o -o nasmjf
+$ rm nasmjf.o
+$ ./nasmjf
 JONESFORTH VERSION 1
 20643 CELLS REMAINING
-OK ." Hello World"
-Hello World
+OK
+: hello ." Hello world!" CR ;
+hello
+Hello world!
+BYE
+$
 ----
 
 This repo is a port from the original GNU Assembler (GAS) implementation to
@@ -27,15 +36,15 @@ See "Loads Jones's FORTH source on start" below.
 
 == Current status
 
-The assembly portion of this interpreter port is pretty much "done". I'm currently
-testing the rest of the built-in words and then I'll shift to cleaning up and
-improving the comments and structure of the assembly source.
+It's done! It passes the original JONESFORTH tests. See `test.sh` in
+the root of the repo (or read devlog/log24.txt).
 
+Now I'm cleaning up the assembly source.
 
 
 == Why does this exist?
 
-Check out the log text files. They're my rambling learning-in-public and
+Check out the devlog/ text files. They're my rambling learning-in-public and
 thinking "out loud" way of describing what I'm up to. The latest log will probably
 give an idea of what I'm currently doing or what I've most recently completed.
 

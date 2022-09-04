@@ -286,4 +286,59 @@ TEST4+0 TEST3+32 TEST2+4 TEST+0
     fact that I'm running the tests up a directory from
     where they would normally be run.
 
+    I'll just go ahead and modify the test:
 
+        - S" test_read_file.f.out" R/O OPEN-FILE
+        + S" jonesforth/test_read_file.f.out" R/O OPEN-FILE
+
+    Now I compare that output with what's expected in
+    Jones's .out files by adding a call to diff to my loop
+    and we'll see if any fail. After a couple tweaks
+    (whitespace, adding the stripping of "DSP=nnnnn" from
+    the stack trace tests using sed, etc.), I was able to get
+    a nice clean run!
+
+eeepc:~/nasmjf$ ./test.sh
+Testing: jonesforth/test_assembler.f
+Testing: jonesforth/test_comparison.f
+Testing: jonesforth/test_exception.f
+Testing: jonesforth/test_number.f
+Testing: jonesforth/test_read_file.f
+Testing: jonesforth/test_stack.f
+Testing: jonesforth/test_stack_trace.f
+
+    Well, then I call this port complete! I'm going to clean
+    up the assembly source (which is a royal mess) and see
+    if I can't maybe improve on the comments, etc. And
+    probably the README as well.
+
+    I've got more fun Forth stuff planned next.
+
+: bye BEGIN ." Goodbye! " AGAIN ;
+bye
+Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye!
+oodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! 
+odbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! G
+dbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Go
+bye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goo
+ye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Good
+e! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodb
+! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodby
+ Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye
+Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye!
+oodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! 
+odbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! G
+dbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Go
+bye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goo
+ye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Good
+e! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodb
+! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodby
+ Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye
+Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye!
+oodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! 
+odbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! G
+dbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Go
+bye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goo
+ye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Good
+e! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodb
+! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodbye! Goodby
