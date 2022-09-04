@@ -74,9 +74,13 @@ cold_start: dd QUIT  ; we need a way to indirectly address the first word
 
 ; TODO: currently, lines set to 1790 is a hack! Instead, I should
 ;       check for eof OR a hard-coded limit down in KEY.
-
-jfsource:   db "jonesforth/jonesforth.f", 0h ; LOADJF path, null-terminated string
-%assign __lines_of_jf_to_read  1790          ; LOADJF lines to read (of 1790)
+;
+; This path is relative by default to make it easy to run nasmjf from
+; the repo dir. But you can set it to an absolute path to allow running
+; from any location.
+jfsource:     db "jonesforth/jonesforth.f", 0h ; LOADJF path, null-terminated
+jfsource_end: db 0h                            ; LOADJF null-terminated string
+%assign __lines_of_jf_to_read  1790            ; LOADJF lines to read (of 1790)
 
 
 ; +----------------------------------------------------------------------------+
@@ -84,7 +88,6 @@ SECTION .text
 global _start
 
 _start:
-
     cld    ; Clear the "direction flag" which means the string instructions (such
            ; as LODSD) work in increment order instead of decrement...
     mov [var_SZ], esp ; save the regular stack pointer (used for data) in FORTH var S0!
@@ -126,14 +129,42 @@ _start:
     mov eax, __NR_open        ; LOADJF open syscall
     mov dword [line_count], 0 ; LOADJF start line at 0, this makes test come out right
     int 80h                   ; LOADJF fd now in eax
+    cmp eax, 0                ; LOADJF fd < 0 is an error!
+    jl .loadjf_open_fail
     mov [read_from_fd], eax   ; LOADJF store fd and tell KEY to read from this
-
-
 
     ; Now "prime the pump" for the NEXT macro by sticking an indirect
     ; address in esi. NEXT will jump to whatever's stored there.
     mov esi, cold_start
     NEXT ; Start Forthing!
+
+.loadjf_open_fail:             ; LOADJF
+    ; For each of these write syscalls:
+    ;     ebx = stderr fd
+    ;     ecx = start address of string
+    ;     edx = length of string
+    ; Print first half of error message
+    mov ebx, 2                 ; LOADJF
+    mov ecx, loadjf_fail_msg   ; LOADJF
+    mov edx, (loadjf_fail_msg_end - loadjf_fail_msg)
+    mov eax, __NR_write        ; LOADJF
+    int 80h                    ; LOADJF
+    ; Print jonesforth source path
+    mov ebx, 2                 ; LOADJF
+    mov ecx, jfsource          ; LOADJF
+    mov edx, (jfsource_end - jfsource)
+    mov eax, __NR_write        ; LOADJF
+    int 80h                    ; LOADJF
+    ; Print second half of error message
+    mov ebx, 2                 ; LOADJF
+    mov ecx, loadjf_fail_msg2  ; LOADJF
+    mov edx, (loadjf_fail_msg_end2 - loadjf_fail_msg2)
+    mov eax, __NR_write        ; LOADJF
+    int 80h                    ; LOADJF
+    ; Exit with beauty and grace
+    mov ebx, 0    ; exit code
+    mov eax, 1    ; exit syscall
+    int 80h       ; call kernel
 
 ; +----------------------------------------------------------------------------+
 ; | Forth DOCOL implementation                                                 |
@@ -241,15 +272,6 @@ DOCOL:
     dd RSPSTORE     ; store R0 in return stack pointer (ebp)
     dd INTERPRET    ; interpret the next word
     dd BRANCH,-8    ; and loop (indefinitely)
-
-    dd gtfo
-
-        ; just try to exit gracefully:
-    DEFCODE "gtfo",4,0,gtfo
-    mov ebx, 0    ; exit code
-    mov eax, 1    ; exit syscall
-    int 80h       ; call kernel
-
 
 
 ; ============================================================
@@ -386,7 +408,7 @@ DOCOL:
     mov ecx,[currkey]       ; the error occurred just before currkey position
     mov edx,ecx
     sub edx,buffer          ; edx = currkey - buffer (length in buffer before currkey)
-    cmp edx,40              ; if > 40, then print only 40 characters
+    cmp edx,40              ; if >= 40, then print only 40 characters
     jle .print_error
     mov edx,40
 .print_error:     ; (7)
@@ -1379,3 +1401,8 @@ read_from_fd: db 0,0,0,0 ; 0=STDIN, etc.
 errmsg: db "PARSE ERROR: "
 errmsgend:
 errmsgnl: db `\n`
+loadjf_fail_msg: db "ERROR Could not open '"
+loadjf_fail_msg_end:
+loadjf_fail_msg2: db "'."
+db `\n`
+loadjf_fail_msg_end2:
