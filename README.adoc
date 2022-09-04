@@ -7,7 +7,7 @@ https://rwmj.wordpress.com/2010/08/07/jonesforth-git-repository/
 
 You can see the full original source in the `jonesforth/` directory in this repo.
 
-Assemble and run like so:
+Assemble and run `nasmjf` like so:
 
 ----
 $ nasm -f elf32 -g -o nasmjf.o nasmjf.asm
@@ -37,14 +37,14 @@ See "Loads Jones's FORTH source on start" below.
 == Current status
 
 It's done! It passes the original JONESFORTH tests. See `test.sh` in
-the root of the repo (or read devlog/log24.txt).
+the root of the repo (or read `devlog/log24.txt`).
 
 Now I'm cleaning up the assembly source.
 
 
 == Why does this exist?
 
-Check out the devlog/ text files. They're my rambling learning-in-public and
+Check out the `devlog/log*.txt` text files. They're my rambling learning-in-public and
 thinking "out loud" way of describing what I'm up to. The latest log will probably
 give an idea of what I'm currently doing or what I've most recently completed.
 

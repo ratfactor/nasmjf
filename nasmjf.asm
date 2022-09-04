@@ -1,6 +1,13 @@
 ; Dave's NASM port of jonesFORTH
+;
+; This port will have explanitory comments, but for the full
+; "JONESFORTH experience", read the original source files which
+; you should find in this repo at:
+;
+;     jonesforth/jonesforth.S
+;     jonesforth/jonesforth.f
 ; 
-; register use:
+; Register use:
 ;       esi - next forth word address to execute
 ;       ebp - return stack for forth word addresses
 ;       esp - "normal" stack for params
