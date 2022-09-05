@@ -10,31 +10,101 @@
 ; 
 %assign NASMJF_VERSION 48 ; One more than JONESFORTH
 
-; +----------------------------------------------------------------------------+
-; | System Call Numbers                                                        |
-; +----------------------------------------------------------------------------+
-; JONESFORTH uses an external include file which you may not have. I'm just
-; gonna hardcode them here. I can't imagine these changing often.
-; (I found them in Linux source in file arch/x86/include/asm/unistd_32.h)
-%assign __NR_exit  1
-%assign __NR_open  5
-%assign __NR_close 6
-%assign __NR_read  3
-%assign __NR_write 4
-%assign __NR_creat 8
-%assign __NR_brk   45
-
 ; Guide to register use:
-;
 ;       esi - Next forth word address to execute
 ;       ebp - Return stack pointer for Forth word addresses
 ;       esp - THE STACK (aka "parameter stack") pointer
 ;
+; A Forth system is composed of words. Words are like functions: they contain
+; a series of instructions. Those instructions are actually just a list of
+; pointers to other words. So it's words all the way down.
+;
+; Well, actually, nothing really useful happens until you get to one of the
+; base words that is written in machine code. These "code words" are the low
+; level primitives that provide the "bootstrapping" fuctionality for all of
+; the other words built on top of them.
+;
+; Whether a word is a regular word or a "code word", it has the same basic
+; structure, starting with a header:
+;
+; Here's one called "FOO":
+;
+;    +------------------+
+; <----0x8C5FCD8        | Pointer to the previous word
+;    +------------------+
+;    | 3                | Name length (3 for "FOO") & flags (none)
+;    +------------------+
+;    | F                |
+;    +------------------+
+;    | O                |
+;    +------------------+
+;    | O                |
+;    +------------------+
+;
+; After the header, a "codeword" looks like this:
+;
+;    +------------------+
+;  +---0x80490A3        | Pointer to the machine code that follows!
+;  | +------------------+
+;  +-->D4 88 F8 02      | Machine code!
+;    +------------------+
+;    | A8 0F 98 C3      | More machine code...
+;    +------------------+
+;      ...
+;    +------------------+
+;    | NEXT             |
+;    +------------------+
+
+;
+; Which seems weird and pointless (why not just start executing the machine
+; code directly?) until we look at a regular word that is not a "codeword"
+; made of machine code. A regular word looks like this:
+;
+;    +------------------+
+; <----0x80490A3        | Pointer to a special interpreter "codeword"
+;    +------------------+
+; <----0x804A2F0        | Address of another word's "codeword"
+;    +------------------+
+; <----0x804A2F0        | And another word's "codeword"...
+;    +------------------+
+;      ...
+;    +------------------+
+;    | NEXT             |
+;    +------------------+
+;
+; So what the regular words and "codewords" have in common is that they both
+; start (after the header) with a pointer that points to machine code to be
+; executed. (This is called "indirect threaded code" because of the second
+; level of pointer indirection.)
+;
+; The special interpreter "codeword" (the one pointed to at the start of the
+; regular word) basically *also* points to the next instruction. But it does
+; it using the "NEXT" mechanism.
+;
+; And that's the *other* thing both types of words have in common: they both
+; end with "NEXT".
+;
+; NEXT is a set of instructions that execute the next word. In our case, NEXT
+; is an assembly macro containing two instructions that get inlined at the end
+; of *every* word definition.
+;
+; And here it is:
+;
 ; +----------------------------------------------------------------------------+
 ; | The NEXT Macro                                                             |
 ; +----------------------------------------------------------------------------+
-; Jones calls this "indirect threaded code", in which words definitions are just
-; lists of pointers to other words. NEXT loads and executes the next pointer.
+; Register esi is the instruction pointer. NEXT puts the pointer it's pointing
+; to into register eax and advances esi 
+;
+;    +------------------+                NEXT:
+; <----0x8000000        | <-- esi        * eax = 0x8000000
+;    +------------------+           +--- * esi points to next pointer
+; <----0x8AAAAAA        | <---------+    * jump to address in eax
+;    +------------------+
+;
+; The only thing that keeps this whole thing moving is the fact that *every*
+; word ends in NEXT. There is no other mechanism propelling this threaded
+; interpreter forward.
 %macro NEXT 0
     lodsd     ; NEXT: Load from memory into eax, inc esi to point to next word.
     jmp [eax] ; Jump to whatever code we're now pointing at.
@@ -67,6 +137,20 @@ buffer:       resb buffer_size
 emit_scratch: resb 4 ; note: JF had this in .data as .space 1
 
 SECTION .data
+
+; +----------------------------------------------------------------------------+
+; | System Call Numbers                                                        |
+; +----------------------------------------------------------------------------+
+; JONESFORTH uses an external include file which you may not have. I'm just
+; gonna hardcode them here. I can't imagine these changing often.
+; (I found them in Linux source in file arch/x86/include/asm/unistd_32.h)
+%assign __NR_exit  1
+%assign __NR_open  5
+%assign __NR_close 6
+%assign __NR_read  3
+%assign __NR_write 4
+%assign __NR_creat 8
+%assign __NR_brk   45
 
 cold_start: dd QUIT  ; we need a way to indirectly address the first word
 
