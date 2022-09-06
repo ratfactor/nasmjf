@@ -41,3 +41,25 @@ Testing: jonesforth/test_stack_trace.f
     think I'll leave that as an "exercise for the reader" as
     they say. :-)
 
+    I've started inserting comments in the source to explain
+    how stuff works. I don't want to duplicate Jones's
+    explanations too much.
+
+    It's helpful to refresh my own understanding. I've
+    understood each part separately, but it's easy to lose
+    the forest for the trees because the way Forth works is
+    so gosh darned clever. Like, painfully clever.
+
+    I also finally tried something I've wanted to try for a
+    while: using one of NASM's excellent macro features to
+    perform a string length count so I can get rid of the
+    hard-coded name lengths. It turned out to be super easy:
+
+        %strlen namelen %1
+
+    I've converted a couple macros. DEFCODE and DEFWORD are
+    the big ones. I'll do them next.
+
+    I think I would also like to swap the order of the label
+    and flag parameters on these macros to make them
+    prettier to look at...

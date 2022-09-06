@@ -1,4 +1,6 @@
-; Dave's NASM port of jonesFORTH
+; +----------------------------------------------------------------------------+
+; | Dave's NASM port of JONESFORTH                                             |
+; +----------------------------------------------------------------------------+
 ;
 ; This port will have explanitory comments in my own words.
 ;
@@ -11,9 +13,9 @@
 %assign NASMJF_VERSION 48 ; One more than JONESFORTH
 
 ; Guide to register use:
-;       esi - Next forth word address to execute
-;       ebp - Return stack pointer for Forth word addresses
-;       esp - THE STACK (aka "parameter stack") pointer
+;     esi - Next Forth word address pointer
+;     ebp - Return stack pointer ("RSP")
+;     esp - THE STACK (aka "parameter stack") pointer
 ;
 ; A Forth system is composed of words. Words are like functions: they contain
 ; a series of instructions. Those instructions are actually just a list of
@@ -69,7 +71,7 @@
 ;    +------------------+
 ;      ...
 ;    +------------------+
-;    | NEXT             |
+;    | EXIT             |
 ;    +------------------+
 ;
 ; So what the regular words and "codewords" have in common is that they both
@@ -77,18 +79,24 @@
 ; executed. (This is called "indirect threaded code" because of the second
 ; level of pointer indirection.)
 ;
-; The special interpreter "codeword" (the one pointed to at the start of the
+; The special interpreter codeword (the one pointed to at the start of the
 ; regular word) basically *also* points to the next instruction. But it does
-; it using the "NEXT" mechanism.
+; it using "NEXT", which uses the esi register to keep track ; of the next
+; word to execute.
 ;
-; And that's the *other* thing both types of words have in common: they both
-; end with "NEXT".
+; Regular words use the "EXIT" word, a return stack, and the ebp register to
+; do the same thing.
 ;
-; NEXT is a set of instructions that execute the next word. In our case, NEXT
-; is an assembly macro containing two instructions that get inlined at the end
-; of *every* word definition.
+; It may be helpful to summarize at this point:
 ;
-; And here it is:
+;     |==============|=============|===========|===========================|
+;     | Type of word | Starts with | Ends with | Which uses                |
+;     |--------------|-------------|-----------|---------------------------|
+;     | Regular word | Ptr to code | EXIT      | esi, main data memory     |
+;     | Codeword     | Ptr to self | NEXT      | ebp ("RSP"), return stack |
+;     |==============|=============|===========|===========================|
+;
+; Here's the next macro:
 ;
 ; +----------------------------------------------------------------------------+
 ; | The NEXT Macro                                                             |
@@ -110,14 +118,18 @@
     jmp [eax] ; Jump to whatever code we're now pointing at.
 %endmacro
 
+; By the way, the thing that makes Forth so hard to understand isn't all the
+; little details; it's the fact that *none of it makes sense in pieces*. Only
+; with the entire puzzle together in your head can you comprehend the machine.
+
 ; +----------------------------------------------------------------------------+
 ; | Return stack PUSH/POP macros                                               |
 ; +----------------------------------------------------------------------------+
-; - We will use the frame pointer (ebp) register for a FORTH word return stack.
-; - The PUSHRSP and POPRSP macros handle pushing registers onto stack memory
-;   managed by ebp - the Return Stack Pointer (RSP)
-; - NASM macros specify a number of params and substitute 'em with %1, %2, etc.
-;
+; The ebp register will be the return stack pointer ("RSP")
+; The PUSHRSP and POPRSP macros handle pushing registers onto stack memory.
+; The return stack is used to 
+; (NASM macros use placeholders %1, %2, etc. as sequential params to substitute
+; into the machine code verbatim.)
 %macro PUSHRSP 1
     lea ebp, [ebp-4]   ; "load effective address" of next stack position
     mov [ebp], %1      ; "push" the register value to the address at ebp
@@ -132,7 +144,7 @@ SECTION .bss
 return_stack: resb 8192
 return_stack_top: resb 4
 ; var_S0:       resb 4 <---------------what on earth???
-data_segment: resb 1024 
+data_segment: resb 1024
 buffer:       resb buffer_size
 emit_scratch: resb 4 ; note: JF had this in .data as .space 1
 
@@ -850,6 +862,20 @@ _FIND:
     xor [edi], word F_HIDDEN  ; Toggle the HIDDEN bit in place.
     NEXT
 
+; Let's say we have a word "foo" that 
+;
+; QUIT
+;   foo (word)
+;     -> DOCOL (codeword)
+;        NEXT
+;     (other words)
+;     -> bar (word)
+;         -> DOCOL (codeword
+;            NEXT
+;         (other words)
+;         -> EXIT
+;     -> EXIT
+;                         
     DEFCODE "EXIT",4,,EXIT
     POPRSP esi            ; pop return stack into esi
     NEXT
@@ -1397,35 +1423,36 @@ _PRINTWORD:
 
 
 ; Check it out! A const is just a word that pushes a value!
-%macro DEFCONST 5 ; 1=name 2=namelen 3=flags 4=label 5=value
-        DEFCODE %1,%2,%3,%4
-        push %5
+%macro DEFCONST 4 ; 1=name 2=flags 3=label 4=value
+    %strlen namelen %1
+        DEFCODE %1,namelen,%2,%3
+        push %4
         NEXT
 %endmacro
 
-    DEFCONST "VERSION",7,,VERSION,NASMJF_VERSION
-    DEFCONST "R0",2,,R0,return_stack_top
-    DEFCONST "DOCOL",5,,__DOCOL,DOCOL
-    DEFCONST "F_IMMED",7,,__F_IMMED,F_IMMED
-    DEFCONST "F_HIDDEN",8,,__F_HIDDEN,F_HIDDEN
-    DEFCONST "F_LENMASK",9,,__F_LENMASK,F_LENMASK
+    DEFCONST "VERSION",,VERSION,NASMJF_VERSION
+    DEFCONST "R0",,R0,return_stack_top
+    DEFCONST "DOCOL",,__DOCOL,DOCOL
+    DEFCONST "F_IMMED",,__F_IMMED,F_IMMED
+    DEFCONST "F_HIDDEN",,__F_HIDDEN,F_HIDDEN
+    DEFCONST "F_LENMASK",,__F_LENMASK,F_LENMASK
 
-    DEFCONST "SYS_EXIT",8,,SYS_EXIT,__NR_exit
-    DEFCONST "SYS_OPEN",8,,SYS_OPEN,__NR_open
-    DEFCONST "SYS_CLOSE",9,,SYS_CLOSE,__NR_close
-    DEFCONST "SYS_READ",8,,SYS_READ,__NR_read
-    DEFCONST "SYS_WRITE",9,,SYS_WRITE,__NR_write
-    DEFCONST "SYS_CREAT",9,,SYS_CREAT,__NR_creat
-    DEFCONST "SYS_BRK",7,,SYS_BRK,__NR_brk
+    DEFCONST "SYS_EXIT",,SYS_EXIT,__NR_exit
+    DEFCONST "SYS_OPEN",,SYS_OPEN,__NR_open
+    DEFCONST "SYS_CLOSE",,SYS_CLOSE,__NR_close
+    DEFCONST "SYS_READ",,SYS_READ,__NR_read
+    DEFCONST "SYS_WRITE",,SYS_WRITE,__NR_write
+    DEFCONST "SYS_CREAT",,SYS_CREAT,__NR_creat
+    DEFCONST "SYS_BRK",,SYS_BRK,__NR_brk
 
-    DEFCONST "O_RDONLY",8,,__O_RDONLY,0
-    DEFCONST "O_WRONLY",8,,__O_WRONLY,1
-    DEFCONST "O_RDWR",6,,__O_RDWR,2
-    DEFCONST "O_CREAT",7,,__O_CREAT,0100
-    DEFCONST "O_EXCL",6,,__O_EXCL,0200
-    DEFCONST "O_TRUNC",7,,__O_TRUNC,01000
-    DEFCONST "O_APPEND",8,,__O_APPEND,02000
-    DEFCONST "O_NONBLOCK",10,,__O_NONBLOCK,04000
+    DEFCONST "O_RDONLY",,__O_RDONLY,0
+    DEFCONST "O_WRONLY",,__O_WRONLY,1
+    DEFCONST "O_RDWR",,__O_RDWR,2
+    DEFCONST "O_CREAT",,__O_CREAT,0100
+    DEFCONST "O_EXCL",,__O_EXCL,0200
+    DEFCONST "O_TRUNC",,__O_TRUNC,01000
+    DEFCONST "O_APPEND",,__O_APPEND,02000
+    DEFCONST "O_NONBLOCK",,__O_NONBLOCK,04000
 
 ; ============================================================
 ; Built-in vars:
@@ -1447,24 +1474,25 @@ _PRINTWORD:
 ;	.int \initial
 ;	.endm
 
-%macro DEFVAR 5 ; 1=name 2=namelen 3=flags 4=label 5=value
-        DEFCODE %1,%2,%3,%4
-        push dword var_%4
+%macro DEFVAR 4 ; 1=name 2=flags 3=label 4=value
+    %strlen namelen %1
+        DEFCODE %1,namelen,%2,%3
+        push dword var_%3
         NEXT
     section .data
         align 4
-    var_%4:   ; Give it an asm label. Example: var_SZ for 'S0'
-        dd %5 ; note dd to reserve a "double" (4b)
+    var_%3:   ; Give it an asm label. Example: var_SZ for 'S0'
+        dd %4 ; note dd to reserve a "double" (4b)
 %endmacro
 
-    DEFVAR "STATE",5,,STATE,0
-    DEFVAR "HERE",4,,HERE,0
-    DEFVAR "S0",2,,SZ,0
-    DEFVAR "BASE",4,,BASE,10
-    DEFVAR "CSTART",6,,CSTART,0
-    DEFVAR "CEND",4,,CEND,0
-    DEFVAR "READFROM",8,,READFROM,read_from_fd ; LOADJF - make available to Forth???
-    DEFVAR "LATEST",6,,LATEST,name_LATEST ; points to last word defined...which will just
+    DEFVAR "STATE",,STATE,0
+    DEFVAR "HERE",,HERE,0
+    DEFVAR "S0",,SZ,0
+    DEFVAR "BASE",,BASE,10
+    DEFVAR "CSTART",,CSTART,0
+    DEFVAR "CEND",,CEND,0
+    DEFVAR "READFROM",,READFROM,read_from_fd ; LOADJF - make available to Forth???
+    DEFVAR "LATEST",,LATEST,name_LATEST ; points to last word defined...which will just
                                           ; happen to be self. We'll see if this works.
 
 
