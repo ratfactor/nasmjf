@@ -350,22 +350,23 @@ DOCOL:
 ; interpreter and will be followed by pointers to other words.
 ; DEFCODE will be followed by pure ASM machine code.
 
-%macro DEFWORD 4 ; 1=name 2=namelen 3=flags 4=label
+%macro DEFWORD 3 ; 1=name 2=label 3=flags
+        %strlen namelen %1
         SECTION .data
         align 4
 
-        global name_%4 ; name_<label>
-        name_%4:
+        global name_%2 ; name_<label>
+        name_%2:
             dd link                ; the previous word's addr
-            %define link name_%4   ; store this link addr for next time
-            db %3 + %2   ; flags + namelen 
-            db %1        ;name string
+            %define link name_%2   ; store this link addr for next time
+            db %3 + namelen        ; flags + namelen 
+            db %1                  ; name string
             align 4
 
-         global %4 ; <label>
-         %4:
-             dd DOCOL ; addr of the "interpreter" that will handle
-                     ; the list of forth word addrs that will follow
+         global %2 ; <label>
+         %2:
+             dd DOCOL ; addr of the "interpreter" code word that will handle
+                      ; the list of forth word addrs that will follow
 %endmacro
 
 %macro DEFCODE 4 ; 1=name 2=namelen 3=flags 4=label
@@ -396,8 +397,8 @@ DOCOL:
 %endmacro
 
     ; the name "QUIT" makes sense from a certain point of view: it
-    ; returns to the interpreter
-    DEFWORD "QUIT",4,0,QUIT
+   
+    DEFWORD "QUIT",QUIT,0
     dd R0           ; push R0 (addr of top of return stack)
     dd RSPSTORE     ; store R0 in return stack pointer (ebp)
     dd INTERPRET    ; interpret the next word
@@ -676,7 +677,7 @@ _TCFA:
         ; Turn a dictionary pointer into a "data" pointer.
         ; Data simply being the word addresses immediately
         ; following the codeword (4 bytes later).
-    DEFWORD ">DFA",4,,TDFA
+    DEFWORD ">DFA",TDFA,0
     dd TCFA                 ; get codeword address
     dd INCR4                ; advance 4 bytes
     dd EXIT                 ; return from this word
@@ -919,7 +920,7 @@ _FIND:
     ; It also sets the new definition to hidden so the word isn't
     ; discovered while it is being compiled.
 
-    DEFWORD ":",1,,COLON
+    DEFWORD ":",COLON,0
     dd FWORD                 ; Get the name of the new word
     dd CREATE               ; CREATE the dictionary entry / header
     dd LIT, DOCOL, COMMA    ; Append DOCOL  (the codeword).
@@ -931,7 +932,7 @@ _FIND:
     ; SEMICOLON (;) is an immediate word (F_IMMED) and it ends compile
     ; mode and unhides the word entry being compiled.
 
-    DEFWORD ";",1,F_IMMED,SEMICOLON
+    DEFWORD ";",SEMICOLON,F_IMMED
     dd LIT, EXIT, COMMA     ; Append EXIT (so the word will return).
     dd LATEST, FETCH, HIDDEN ; Unhide word now that it's been compiled.
     ;dd LATEST, HIDDEN ; Unhide word now that it's been compiled.
@@ -1397,7 +1398,7 @@ _PRINTWORD:
     xor byte [edi], F_IMMED   ; Toggle the IMMED bit.
     NEXT
 
-    DEFWORD "HIDE",4,,HIDE
+    DEFWORD "HIDE",HIDE,0
     dd FWORD        ; Get the word (after HIDE).
     dd FIND        ; Look up in the dictionary.
     dd HIDDEN      ; Set F_HIDDEN flag.
