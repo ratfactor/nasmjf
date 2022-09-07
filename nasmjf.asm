@@ -26,25 +26,28 @@
 ; level primitives that provide the "bootstrapping" fuctionality for all of
 ; the other words built on top of them.
 ;
-; Whether a word is a regular word or a "code word", it has the same basic
+; Whether a word is a regular word or a code word, it has the same basic
 ; structure, starting with a header:
 ;
 ; Here's one called "FOO":
 ;
+;        Word Header      (For *all* word types)
 ;    +------------------+
 ; <----0x8C5FCD8        | Pointer to the previous word
 ;    +------------------+
 ;    | 3                | Name length (3 for "FOO") & flags (none)
 ;    +------------------+
-;    | F                |
+;    | 'F'              |
 ;    +------------------+
-;    | O                |
+;    | 'O'              |
 ;    +------------------+
-;    | O                |
+;    | 'O'              |
 ;    +------------------+
 ;
-; After the header, a "codeword" looks like this:
+; After the header, a code word looks like this:
 ;
+;          ...            <--- Header ends here, word body begins
+;        Code Word
 ;    +------------------+
 ;  +---0x80490A3        | Pointer to the machine code that follows!
 ;  | +------------------+
@@ -56,47 +59,71 @@
 ;    +------------------+
 ;    | NEXT             |
 ;    +------------------+
-
+;
 ;
 ; Which seems weird and pointless (why not just start executing the machine
-; code directly?) until we look at a regular word that is not a "codeword"
+; code directly?) until we look at a regular word that is not a code word
 ; made of machine code. A regular word looks like this:
 ;
+;          ...            <--- Header ends here, word body begins
+;       Regular Word
 ;    +------------------+
-; <----0x80490A3        | Pointer to a special interpreter "codeword"
+; <----0x80490A3        | Pointer to special *interpreter code word*
 ;    +------------------+
-; <----0x804A2F0        | Address of another word's "codeword"
+; <----0x804A2F0        | Address of _another_ word's code word
 ;    +------------------+
-; <----0x804A2F0        | And another word's "codeword"...
+; <----0x804A2F0        | And another...
 ;    +------------------+
 ;      ...
 ;    +------------------+
 ;    | EXIT             |
 ;    +------------------+
 ;
-; So what the regular words and "codewords" have in common is that they both
-; start (after the header) with a pointer that points to machine code to be
-; executed. (This is called "indirect threaded code" because of the second
-; level of pointer indirection.)
-;
-; The special interpreter codeword (the one pointed to at the start of the
-; regular word) basically *also* points to the next instruction. But it does
-; it using "NEXT", which uses the esi register to keep track ; of the next
-; word to execute.
-;
 ; Regular words use the "EXIT" word, a return stack, and the ebp register to
-; do the same thing.
+; do the same thing. And here's the fun part: EXIT ends with NEXT!
+;
+; What the regular words and "code words" have in common is that they both
+; start (after the header) with a pointer that points to machine code to be
+; executed. Also known as the *interpreter code word*. For many regular words,
+; the interpreter code word will be:
+;
+;            DOCOL
+;
+; The interpreter code word executes the rest of the current word by
+; incrementing the instruction pointer (esi) and calling the NEXT macro.
+;
+; This is called "indirect threaded code" because of the second level of
+; pointer indirection.
 ;
 ; It may be helpful to summarize at this point:
 ;
-;     |==============|=============|===========|===========================|
-;     | Type of word | Starts with | Ends with | Which uses                |
-;     |--------------|-------------|-----------|---------------------------|
-;     | Regular word | Ptr to code | EXIT      | esi, main data memory     |
-;     | Codeword     | Ptr to self | NEXT      | ebp ("RSP"), return stack |
-;     |==============|=============|===========|===========================|
+;     |==============|=============|============|===========================|
+;     | Type of word | Starts with | Ends with  | Which uses                |
+;     |--------------|-------------|------------|---------------------------|
+;     | Regular word | Ptr to code | EXIT ptr   | esi, main data memory     |
+;     | Codeword     | Ptr to self | NEXT macro | ebp ("RSP"), return stack |
+;     |==============|=============|============|===========================|
 ;
-; Here's the next macro:
+; Also, let's visualize the layout of a code word and regular word side-by side:
+;
+;         Code Word                    Regular Word
+;    +------------------+          +------------------+
+;    | Link pointer     |          | Link pointer     |
+;    +------------------+          +------------------+
+;    | Name/flags       |          | Name/flags       |
+;    +------------------+          +------------------+      +------------+
+;    | Pointer to code  | ---+     | Pointer to DOCOL | ---> | DOCOL      |
+;    +------------------+    |     +------------------+      +------------+
+;    | <machine code>   |<---+     | Pointer to word  | <--- | NEXT       |
+;    +------------------+          +------------------+      +------------+
+;    | <machine code>   |          | Pointer to EXIT  |   
+;    +------------------+          +------------------+      +------------+
+;    | NEXT             |          | Pointer to EXIT  | ---> + EXIT       |
+;    +------------------+          +------------------+      +------------+
+;                                                            | NEXT       |
+;                                                            +------------+
+;
+; Without further ado, here's the next macro:
 ;
 ; +----------------------------------------------------------------------------+
 ; | The NEXT Macro                                                             |
@@ -117,9 +144,11 @@
     lodsd     ; NEXT: Load from memory into eax, inc esi to point to next word.
     jmp [eax] ; Jump to whatever code we're now pointing at.
 %endmacro
-
+ 
+; That's a lot of stuff pointing at stuff.
+ 
 ; By the way, the thing that makes Forth so hard to understand isn't all the
-; little details; it's the fact that *none of it makes sense in pieces*. Only
+; little details. It's the fact that *none of it makes sense in pieces*. Only
 ; with the entire puzzle together in your head can you comprehend the machine.
 
 ; +----------------------------------------------------------------------------+
@@ -139,17 +168,6 @@
     lea ebp, [ebp+4]
 %endmacro
 
-SECTION .bss
-%define buffer_size 4096
-return_stack: resb 8192
-return_stack_top: resb 4
-; var_S0:       resb 4 <---------------what on earth???
-data_segment: resb 1024
-buffer:       resb buffer_size
-emit_scratch: resb 4 ; note: JF had this in .data as .space 1
-
-SECTION .data
-
 ; +----------------------------------------------------------------------------+
 ; | System Call Numbers                                                        |
 ; +----------------------------------------------------------------------------+
@@ -164,13 +182,28 @@ SECTION .data
 %assign __NR_creat 8
 %assign __NR_brk   45
 
+; +----------------------------------------------------------------------------+
+; | Return stack and main memory - initial memory allocations                  |
+; +----------------------------------------------------------------------------+
+SECTION .bss
+%define buffer_size 4096
+return_stack: resb 8192
+return_stack_top: resb 4
+data_segment: resb 1024
+buffer:       resb buffer_size
+emit_scratch: resb 4 ; note: JF had this in .data as .space 1
+
+; +----------------------------------------------------------------------------+
+; | A label used as a pointer to the first word that will be executed          |
+; +----------------------------------------------------------------------------+
+SECTION .data
 cold_start: dd QUIT  ; we need a way to indirectly address the first word
 
 ; +----------------------------------------------------------------------------+
 ; | "LOADJF" - Load jonesforth.f on start                                      |
 ; +----------------------------------------------------------------------------+
 ; This is a major difference with my port. Search for 'LOADJF' in this file to
-; see all ; of the places where I made changes or additions to support this.
+; see all of the places where I made changes or additions to support this.
 ;
 ; This path is relative by default to make it easy to run nasmjf from
 ; the repo dir. But you can set it to an absolute path to allow running
@@ -179,6 +212,8 @@ jfsource:     db "jonesforth/jonesforth.f", 0h ; LOADJF path, null-terminated
 jfsource_end: db 0h                            ; LOADJF null-terminated string
 
 
+; +----------------------------------------------------------------------------+
+; | Program entry point - start the interpreter!                               |
 ; +----------------------------------------------------------------------------+
 SECTION .text
 global _start
