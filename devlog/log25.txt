@@ -63,3 +63,9 @@ Testing: jonesforth/test_stack_trace.f
     I think I would also like to swap the order of the label
     and flag parameters on these macros to make them
     prettier to look at...
+
+    Two nights later: done! That was a royal pain, but
+    between sed on the command line piping to intermediate
+    files and then some simpler find/replace in Vim, I
+    managed to automate 99% of it.
+

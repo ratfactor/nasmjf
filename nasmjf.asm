@@ -369,29 +369,30 @@ DOCOL:
                       ; the list of forth word addrs that will follow
 %endmacro
 
-%macro DEFCODE 4 ; 1=name 2=namelen 3=flags 4=label
+%macro DEFCODE 3 ; 1=name 2=label 3=flags
+        %strlen namelen %1
         SECTION .data
         align 4
 
         ; name_<label>
-        global name_%4
-        name_%4:
+        global name_%2
+        name_%2:
             dd link                ; the previous word's addr
-            %define link name_%4   ; store this link addr for next time
-            db %3 + %2   ; flags + namelen 
-            db %1        ;name string
+            %define link name_%2   ; store this link addr for next time
+            db %3 + namelen        ; flags + namelen 
+            db %1                  ; name string
             align 4
 
         ; <label>
-        global %4
-        %4:
-            dd code_%4 ; addr of code_label, for the asm code that will follow
+        global %2
+        %2:
+            dd code_%2 ; addr of code_label, for the asm code that will follow
             align 4
 
         ; code_<label>
         SECTION .text
     global code_%4
-        code_%4:
+        code_%2:
             ; Then whatever follows this macro output is the assembly
             ; code for the Forth word...
 %endmacro
@@ -415,7 +416,7 @@ DOCOL:
     ; It's not an immediate word, so it executes at run time,
     ; which is why we end up with the address of the next word
     ; (which was matched at compile time) to put on the stack!
-    DEFCODE "'",1,,TICK
+    DEFCODE "'",TICK,0
     lodsd                   ; Moves value at esi to eax, esi++
     push eax                ; Push address on the stack
     NEXT
@@ -428,13 +429,13 @@ DOCOL:
     ; To branch/loop back to a previous instruction, you provide
     ; a negative offset.
     ; esi currently points at the offset number.
-    DEFCODE "BRANCH",6,,BRANCH
+    DEFCODE "BRANCH",BRANCH,0
     add esi, [esi]          ; add the offset to the instruction pointer
     NEXT
 
     ; 0BRANCH is the same thing, but with a condition: it only
     ; jumps if the top of the stack is zero.
-    DEFCODE "0BRANCH",7,,ZBRANCH
+    DEFCODE "0BRANCH",ZBRANCH,0
     pop eax
     test eax, eax           ; top of stack is zero?
     jz code_BRANCH          ; if so, jump back to BRANCH
@@ -448,7 +449,7 @@ DOCOL:
     ; memory from the address at the current instruction pointer
     ; (esi) into eax and then increment esi to skip over it so
     ; NEXT doesnt try to execute it.
-    DEFCODE "LITSTRING",9,,LITSTRING
+    DEFCODE "LITSTRING",LITSTRING,0
     lodsd                   ; get the length of the string into eax
     push esi                ; push the address of the start of the string
     push eax                ; push it on the stack
@@ -459,7 +460,7 @@ DOCOL:
 
     ; Same deal here - another primitive. This one uses a Linux syscall
     ; to print a string.
-    DEFCODE "TELL",4,,TELL
+    DEFCODE "TELL",TELL,0
     mov ebx, 1        ; 1st param: stdout
     pop edx        ; 3rd param: length of string
     pop ecx        ; 2nd param: address of string
@@ -471,7 +472,7 @@ DOCOL:
         ;
         ; * * *   The Forth interpreter!   * * *
         ;
-    DEFCODE "INTERPRET",9,,INTERPRET
+    DEFCODE "INTERPRET",INTERPRET,0
     call _WORD              ; Returns %ecx = length, %edi = pointer to word.
 
     ; Is it in the dictionary?
@@ -563,7 +564,7 @@ DOCOL:
         ;
         ; Forth strings are address+length, no NUL termination.
 
-    DEFCODE "WORD",4,,FWORD ; note changed nasm reserved keyword WORD to FWORD
+    DEFCODE "WORD",FWORD,0  ; Note changed nasm reserved keyword WORD to FWORD!
     call _WORD
     push edi                ; push base address
     push ecx                ; push length
@@ -610,7 +611,7 @@ SECTION .text
         ;
         ; LOADJF: This has my "hack" to make KEY read from file descriptors
         ;         other than STDIN so we can read jonesforth.f on start.
-    DEFCODE "KEY",3,,KEY
+    DEFCODE "KEY",KEY,0
     call _KEY
     push eax        ; push return value on stack
     NEXT
@@ -657,7 +658,7 @@ _KEY:
         ; Turn a dictionary pointer into a codeword pointer.
         ; This is where we use the stored length of the word name
         ; to skip to the beginning of the code.
-    DEFCODE ">CFA",4,,TCFA
+    DEFCODE ">CFA",TCFA,0
     pop edi
     call _TCFA
     push edi
@@ -684,7 +685,7 @@ _TCFA:
 
         ; ***** NUMBER *****
         ; parse numeric literal from input using BASE as radix
-    DEFCODE "NUMBER",6,,NUMBER
+    DEFCODE "NUMBER",NUMBER,0
     pop ecx                 ; length of string
     pop edi                 ; start address of string
     call _NUMBER
@@ -752,7 +753,7 @@ _NUMBER:
         ; esi always points to the next thing. Usually this is
         ; the next word. But in this case, it's the literal value
         ; to push onto the stack.
-    DEFCODE "LIT",3,,LIT
+    DEFCODE "LIT",LIT,0
     lodsd                   ; loads the value at esi into eax, increments esi
     push eax                ; push the literal number on to stack
     NEXT
@@ -761,7 +762,7 @@ _NUMBER:
     ; Before this, we'll have called _WORD which pushed (returned):
         ;     ecx = length
         ;     edi = start of word (addr)
-    DEFCODE "FIND",4,,FIND
+    DEFCODE "FIND",FIND,0
     pop ecx                 ; length of word
     pop edi                 ; buffer with word
     call _FIND
@@ -818,7 +819,7 @@ _FIND:
 
         ; CREATE makes words! Specifically, the header portion of words.
 
-    DEFCODE "CREATE",6,,CREATE
+    DEFCODE "CREATE",CREATE,0
     pop ecx                   ; length of word name
     pop ebx                   ; address of word name
 
@@ -849,7 +850,7 @@ _FIND:
     ; currently-pushed value from the stack to the position pointed to
     ; by HERE and increments HERE to the next 4 bytes.
 
-    DEFCODE ",",1,,COMMA
+    DEFCODE ",",COMMA,0
     pop eax                ; Code pointer to store.
     call _COMMA
     NEXT
@@ -873,12 +874,12 @@ _FIND:
     ; Note that LBRAC has the immediate flag set because otherwise
     ; it would get compiled rather than switch modes then and there.
 
-    DEFCODE "[",1,F_IMMED,LBRAC
+    DEFCODE "[",LBRAC,F_IMMED
     xor eax, eax
     mov [var_STATE], eax      ; Set STATE to 0 (immediate)
     NEXT
 
-    DEFCODE "]",1,,RBRAC
+    DEFCODE "]",RBRAC,0
     mov [var_STATE], word 1   ; Set STATE to 1 (compile)
     NEXT
 
@@ -892,7 +893,7 @@ _FIND:
     ; EXIT pops the return stack value into esi - this is the
     ; reverse of what DOCOL does.
 
-    DEFCODE "HIDDEN",6,,HIDDEN
+    DEFCODE "HIDDEN",HIDDEN,0
     pop edi                 ; Dictionary entry, first byte is link
     add edi, 4              ; Move to name/flags byte.
     xor [edi], word F_HIDDEN  ; Toggle the HIDDEN bit in place.
@@ -912,7 +913,7 @@ _FIND:
 ;         -> EXIT
 ;     -> EXIT
 ;                         
-    DEFCODE "EXIT",4,,EXIT
+    DEFCODE "EXIT",EXIT,0
     POPRSP esi            ; pop return stack into esi
     NEXT
 
@@ -951,7 +952,7 @@ _FIND:
 
     ; EMIT just displays a character of output from the stack.
     ; It doesnt attempt to be efficient at all (no buffering, etc.)
-    DEFCODE "EMIT",4,,EMIT
+    DEFCODE "EMIT",EMIT,0
     pop eax
     call _EMIT
     NEXT
@@ -967,7 +968,7 @@ _EMIT:
     ; DOT (temporary definiion) displays ascii decimal represention
     ; of numbers. Based on "echoi" proc written as part of asmtutor.com
     ; The real dot will be written as pure Forth later.
-    DEFCODE ".",1,,DOT
+    DEFCODE ".",DOT,0
     pop eax
     call _DOT
     NEXT
@@ -1006,7 +1007,7 @@ _DOT:
     ; PRINTWORD
     ; Super killer debugging word! Prints the name of the word pointed to
     ; on the stack. Example: LATEST PRINTWORD
-    DEFCODE "PRINTWORD",9,,PRINTWORD
+    DEFCODE "PRINTWORD",PRINTWORD,0
     pop eax
     call _PRINTWORD
     NEXT
@@ -1029,12 +1030,12 @@ _PRINTWORD:
     ; stack manipulation words
 
     ; drop top of stack
-    DEFCODE "DROP",4,,DROP
+    DEFCODE "DROP",DROP,0
     pop eax
     NEXT
 
     ; swap top two elements
-    DEFCODE "SWAP",4,,SWAP
+    DEFCODE "SWAP",SWAP,0
     pop eax
     pop ebx
     push eax
@@ -1042,19 +1043,19 @@ _PRINTWORD:
     NEXT
 
     ; duplicate element on top of stack
-    DEFCODE "DUP",3,,DUP
+    DEFCODE "DUP",DUP,0
     mov eax, [esp]
     push eax
     NEXT
 
     ; duplicate second element of stack to top
-    DEFCODE "OVER",4,,OVER
+    DEFCODE "OVER",OVER,0
     mov eax, [esp+4]
     push eax
     NEXT
 
     ; rotate the top three items on stack (ABC -> BCA)
-    DEFCODE "ROT",3,,ROT
+    DEFCODE "ROT",ROT,0
     pop eax
     pop ebx
     pop ecx
@@ -1064,7 +1065,7 @@ _PRINTWORD:
     NEXT
 
     ; reverse rotate top three items on stack (ABC -> CAB)
-    DEFCODE "-ROT",4,,NROT
+    DEFCODE "-ROT",NROT,0
     pop eax
     pop ebx
     pop ecx
@@ -1074,13 +1075,13 @@ _PRINTWORD:
     NEXT
 
     ; drop top two elements from stack
-    DEFCODE "2DROP",5,,TWODROP
+    DEFCODE "2DROP",TWODROP,0
     pop eax
     pop eax
     NEXT
 
     ; duplicate top two elements on stack
-    DEFCODE "2DUP",4,,TWODUP
+    DEFCODE "2DUP",TWODUP,0
     mov eax, [esp]
     mov ebx, [esp + 4]
     push ebx
@@ -1088,7 +1089,7 @@ _PRINTWORD:
     NEXT
 
     ; swap top two pairs (ABCD -> CDAB)
-    DEFCODE "2SWAP",5,,TWOSWAP
+    DEFCODE "2SWAP",TWOSWAP,0
     pop eax
     pop ebx
     pop ecx
@@ -1100,7 +1101,7 @@ _PRINTWORD:
     NEXT
 
     ; duplicate top element on stack if it's non-zero
-    DEFCODE "?DUP",4,,QDUP
+    DEFCODE "?DUP",QDUP,0
     mov eax, [esp]
     test eax, eax
     jz .skip
@@ -1112,33 +1113,33 @@ _PRINTWORD:
     ; ==============================
     ; math words!
 
-    DEFCODE "1+",2,,INCR
+    DEFCODE "1+",INCR,0
     inc dword [esp]       ; increment top of stack
     NEXT
 
-    DEFCODE "1-",2,,DECR
+    DEFCODE "1-",DECR,0
     dec dword [esp]       ; decrement top of stack
     NEXT
 
-    DEFCODE "4+",2,,INCR4
+    DEFCODE "4+",INCR4,0
     add dword [esp], 4    ; add 4 to top of stack
     NEXT
 
-    DEFCODE "4-",2,,DECR4
+    DEFCODE "4-",DECR4,0
     sub dword [esp], 4   ; subtract 4 from top of stack
     NEXT
 
-    DEFCODE "+",1,,ADD
+    DEFCODE "+",ADD,0
     pop eax       ; get top of stack
     add [esp], eax  ; and add it to next word on stack
     NEXT
 
-    DEFCODE "-",1,,SUB
+    DEFCODE "-",SUB,0
     pop eax         ; get top of stack
     sub [esp], eax  ; and subtract it from next word on stack
     NEXT
 
-    DEFCODE "*",1,,MUL
+    DEFCODE "*",MUL,0
     pop eax
     pop ebx
     imul eax, ebx
@@ -1148,7 +1149,7 @@ _PRINTWORD:
     ; In JonesFORTH, /MOD is defined in asm. / and MOD will
     ; be defined later in FORTH. This is because i386 idiv
     ; gives us both the quotient and remainder.
-    DEFCODE "/MOD",4,,DIVMOD
+    DEFCODE "/MOD",DIVMOD,0
     xor edx, edx
     pop ebx
     pop eax
@@ -1161,7 +1162,7 @@ _PRINTWORD:
     ; ==============================
     ; comparison/conditional words!
 
-    DEFCODE "=",1,,EQU      ;  top two values are equal?
+    DEFCODE "=",EQU,0      ;  top two values are equal?
     pop eax
     pop ebx
     cmp eax, ebx
@@ -1170,7 +1171,7 @@ _PRINTWORD:
     push eax         ; push answer on stack
     NEXT
  
-    DEFCODE "<>",2,,NEQU    ; top two words are not equal?
+    DEFCODE "<>",NEQU,0    ; top two words are not equal?
     pop eax
     pop ebx
     cmp eax, ebx
@@ -1179,7 +1180,7 @@ _PRINTWORD:
     push eax
     NEXT
  
-    DEFCODE "<",1,,LT
+    DEFCODE "<",LT,0
     pop eax
     pop ebx
     cmp ebx, eax
@@ -1188,7 +1189,7 @@ _PRINTWORD:
     push eax
     NEXT
  
-    DEFCODE ">",1,,GT
+    DEFCODE ">",GT,0
     pop eax
     pop ebx
     cmp ebx, eax
@@ -1197,7 +1198,7 @@ _PRINTWORD:
     push eax
     NEXT
  
-    DEFCODE "<=",2,,LE
+    DEFCODE "<=",LE,0
     pop eax
     pop ebx
     cmp ebx, eax
@@ -1206,7 +1207,7 @@ _PRINTWORD:
     push eax
     NEXT
  
-    DEFCODE ">=",2,,GE
+    DEFCODE ">=",GE,0
     pop eax
     pop ebx
     cmp ebx, eax
@@ -1215,7 +1216,7 @@ _PRINTWORD:
     push eax
     NEXT
  
-    DEFCODE "0=",2,,ZEQU    ; top of stack equals 0?
+    DEFCODE "0=",ZEQU,0    ; top of stack equals 0?
     pop eax
     test eax,eax
     setz al
@@ -1223,7 +1224,7 @@ _PRINTWORD:
     push eax
     NEXT
  
-    DEFCODE "0<>",3,,ZNEQU    ; top of stack not 0?
+    DEFCODE "0<>",ZNEQU,0    ; top of stack not 0?
     pop eax
     test eax,eax
     setnz al
@@ -1231,7 +1232,7 @@ _PRINTWORD:
     push eax
     NEXT
  
-    DEFCODE "0<",2,,ZLT    ; greater than zero
+    DEFCODE "0<",ZLT,0    ; greater than zero
     pop eax
     test eax,eax
     setl al
@@ -1239,7 +1240,7 @@ _PRINTWORD:
     push eax
     NEXT
  
-    DEFCODE "0>",2,,ZGT   ; less than zero
+    DEFCODE "0>",ZGT,0   ; less than zero
     pop eax
     test eax,eax
     setg al
@@ -1247,7 +1248,7 @@ _PRINTWORD:
     push eax
     NEXT
  
-    DEFCODE "0<=",3,,ZLE
+    DEFCODE "0<=",ZLE,0
     pop eax
     test eax,eax
     setle al
@@ -1255,7 +1256,7 @@ _PRINTWORD:
     push eax
     NEXT
  
-    DEFCODE "0>=",3,,ZGE
+    DEFCODE "0>=",ZGE,0
     pop eax
     test eax,eax
     setge al
@@ -1266,22 +1267,22 @@ _PRINTWORD:
     ; ==============================
     ; bitwise logic words
 
-    DEFCODE "AND",3,,AND
+    DEFCODE "AND",AND,0
     pop eax
     and [esp],eax
     NEXT
 
-    DEFCODE "OR",2,,OR
+    DEFCODE "OR",OR,0
     pop eax
     or [esp],eax
     NEXT
 
-    DEFCODE "XOR",3,,XOR
+    DEFCODE "XOR",XOR,0
     pop eax
     xor [esp], eax
     NEXT
 
-    DEFCODE "INVERT",6,,INVERT
+    DEFCODE "INVERT",INVERT,0
     not dword [esp]
     NEXT
 
@@ -1289,25 +1290,25 @@ _PRINTWORD:
     ; ==============================
     ; primitive memory words
 
-    DEFCODE "!",1,,STORE
+    DEFCODE "!",STORE,0
     pop ebx           ; address to store at
     pop eax           ; data to store there
     mov [ebx], eax
     NEXT
 
-    DEFCODE "@",1,,FETCH
+    DEFCODE "@",FETCH,0
     pop ebx                 ; address to fetch
     mov eax, [ebx]          ; fetch it
     push eax                ; push value onto stack
     NEXT
 
-    DEFCODE "+!",2,,ADDSTORE
+    DEFCODE "+!",ADDSTORE,0
     pop ebx                ; address
     pop eax                ; the amount to add
     add [ebx], eax
     NEXT
 
-    DEFCODE "-!",2,,SUBSTORE
+    DEFCODE "-!",SUBSTORE,0
     pop ebx                ; address
     pop eax                ; the amount to subtract
     sub [ebx], eax
@@ -1317,20 +1318,20 @@ _PRINTWORD:
     ; operations, but work on 8 bits. x86 has instructions for this
     ; so we can define these.
 
-    DEFCODE "C!",2,,STOREBYTE
+    DEFCODE "C!",STOREBYTE,0
     pop ebx                ; address to store at
     pop eax                ; data to store there
     mov [ebx], al
     NEXT
 
-    DEFCODE "C@",2,,FETCHBYTE
+    DEFCODE "C@",FETCHBYTE,0
     pop ebx               ; address to fetch
     xor eax, eax          ; clear the register
     mov al, [ebx]         ; grab a byte
     push eax
     NEXT
 
-    DEFCODE "C@C!",4,,CCOPY ; byte copy
+    DEFCODE "C@C!",CCOPY,0 ; byte copy
     mov ebx, [esp+4]      ; source address
     mov al, [ebx]         ; source byte
     pop edi               ; destination address
@@ -1339,7 +1340,7 @@ _PRINTWORD:
     inc byte [esp+4]      ; increment source address
     NEXT
 
-    DEFCODE "CMOVE",5,,CMOVE ; copy n bytes
+    DEFCODE "CMOVE",CMOVE,0 ; copy n bytes
     mov edx, esi          ; preserve esi
     pop ecx               ; length
     pop edi               ; destination address
@@ -1352,25 +1353,25 @@ _PRINTWORD:
     ; Return stack manipulation words
     ; ebp is the return stack pointer (RSP)
 
-    DEFCODE ">R",2,,TOR  ; move value from param stack to return stack
+    DEFCODE ">R",TOR,0  ; move value from param stack to return stack
     pop eax
     PUSHRSP eax
     NEXT
 
-    DEFCODE "R>",2,,FROMR ; move value from return stack to param stack
+    DEFCODE "R>",FROMR,0 ; move value from return stack to param stack
     POPRSP eax
     push eax
     NEXT
 
-    DEFCODE "RSP@",4,,RSPFETCH ; get the actual address RSP points to
+    DEFCODE "RSP@",RSPFETCH,0 ; get the actual address RSP points to
     push ebp
     NEXT
 
-    DEFCODE "RSP!",4,,RSPSTORE ; set the address RSP points to
+    DEFCODE "RSP!",RSPSTORE,0 ; set the address RSP points to
     pop ebp
     NEXT
 
-    DEFCODE "RDROP",5,,RDROP ; move RSP to "pop" value and throw it away
+    DEFCODE "RDROP",RDROP,0 ; move RSP to "pop" value and throw it away
     add ebp, 4
     NEXT
 
@@ -1379,12 +1380,12 @@ _PRINTWORD:
     ; Param stack maniputation words
     ; esp is the param ("data") stack pointer (DSP)
 
-    DEFCODE "DSP@",4,,DSPFETCH
+    DEFCODE "DSP@",DSPFETCH,0
     mov eax, esp
     push eax
     NEXT
 
-    DEFCODE "DSP!",4,,DSPSTORE
+    DEFCODE "DSP!",DSPSTORE,0
     pop esp
     NEXT
 
@@ -1392,7 +1393,7 @@ _PRINTWORD:
     ; ===========================================
     ; misc words needed for interpreter/compiler
 
-    DEFCODE "IMMEDIATE",9,F_IMMED,IMMEDIATE ; makes latest word immediate
+    DEFCODE "IMMEDIATE",IMMEDIATE,F_IMMED ; makes latest word immediate
     mov edi, [var_LATEST]     ; addr of LATEST word.
     add edi, 4                ; Point to name/flags byte.
     xor byte [edi], F_IMMED   ; Toggle the IMMED bit.
@@ -1404,19 +1405,19 @@ _PRINTWORD:
     dd HIDDEN      ; Set F_HIDDEN flag.
     dd EXIT        ; Return.
 
-    DEFCODE "CHAR",4,,CHAR
+    DEFCODE "CHAR",CHAR,0
     call _WORD              ; Returns %ecx = length, %edi = pointer to word.
     xor eax,eax
     mov al,[edi]            ; Get the first character of the word.
     push eax                ; Push it onto the stack.
     NEXT
 
-    DEFCODE "EXECUTE",7,,EXECUTE
+    DEFCODE "EXECUTE",EXECUTE,0
     pop eax                ; Get xt into %eax
     jmp [eax]              ; and jump to it.
                            ; After xt runs its NEXT will continue executing the current word.
 
-    DEFCODE "SYSCALL3",8,,SYSCALL3
+    DEFCODE "SYSCALL3",SYSCALL3,0
     pop eax                ; System call number (see <asm/unistd.h>)
     pop ebx                ; First parameter.
     pop ecx                ; Second parameter
@@ -1425,7 +1426,7 @@ _PRINTWORD:
     push eax               ; Result (negative for -errno)
     NEXT
 
-    DEFCODE "SYSCALL2",8,,SYSCALL2
+    DEFCODE "SYSCALL2",SYSCALL2,0
     pop eax                ; System call number (see <asm/unistd.h>)
     pop ebx                ; First parameter.
     pop ecx                ; Second parameter
@@ -1433,14 +1434,14 @@ _PRINTWORD:
     push eax               ; Result (negative for -errno)
     NEXT
 
-    DEFCODE "SYSCALL1",8,,SYSCALL1
+    DEFCODE "SYSCALL1",SYSCALL1,0
     pop eax                ; System call number (see <asm/unistd.h>)
     pop ebx                ; First parameter.
     int 80h
     push eax               ; Result (negative for -errno)
     NEXT
 
-    DEFCODE "SYSCALL0",8,,SYSCALL0
+    DEFCODE "SYSCALL0",SYSCALL0,0
     pop eax                ; System call number (see <asm/unistd.h>)
     int 80h
     push eax               ; Result (negative for -errno)
@@ -1459,36 +1460,35 @@ _PRINTWORD:
 
 
 ; Check it out! A const is just a word that pushes a value!
-%macro DEFCONST 4 ; 1=name 2=flags 3=label 4=value
-    %strlen namelen %1
-        DEFCODE %1,namelen,%2,%3
+%macro DEFCONST 4 ; 1=name 2=label 3=flags 4=value
+        DEFCODE %1,%2,%3
         push %4
         NEXT
 %endmacro
 
-    DEFCONST "VERSION",,VERSION,NASMJF_VERSION
-    DEFCONST "R0",,R0,return_stack_top
-    DEFCONST "DOCOL",,__DOCOL,DOCOL
-    DEFCONST "F_IMMED",,__F_IMMED,F_IMMED
-    DEFCONST "F_HIDDEN",,__F_HIDDEN,F_HIDDEN
-    DEFCONST "F_LENMASK",,__F_LENMASK,F_LENMASK
+    DEFCONST "VERSION",VERSION,0,NASMJF_VERSION
+    DEFCONST "R0",R0,0,return_stack_top
+    DEFCONST "DOCOL",__DOCOL,0,DOCOL
+    DEFCONST "F_IMMED",__F_IMMED,0,F_IMMED
+    DEFCONST "F_HIDDEN",__F_HIDDEN,0,F_HIDDEN
+    DEFCONST "F_LENMASK",__F_LENMASK,0,F_LENMASK
 
-    DEFCONST "SYS_EXIT",,SYS_EXIT,__NR_exit
-    DEFCONST "SYS_OPEN",,SYS_OPEN,__NR_open
-    DEFCONST "SYS_CLOSE",,SYS_CLOSE,__NR_close
-    DEFCONST "SYS_READ",,SYS_READ,__NR_read
-    DEFCONST "SYS_WRITE",,SYS_WRITE,__NR_write
-    DEFCONST "SYS_CREAT",,SYS_CREAT,__NR_creat
-    DEFCONST "SYS_BRK",,SYS_BRK,__NR_brk
+    DEFCONST "SYS_EXIT",SYS_EXIT,0,__NR_exit
+    DEFCONST "SYS_OPEN",SYS_OPEN,0,__NR_open
+    DEFCONST "SYS_CLOSE",SYS_CLOSE,0,__NR_close
+    DEFCONST "SYS_READ",SYS_READ,0,__NR_read
+    DEFCONST "SYS_WRITE",SYS_WRITE,0,__NR_write
+    DEFCONST "SYS_CREAT",SYS_CREAT,0,__NR_creat
+    DEFCONST "SYS_BRK",SYS_BRK,0,__NR_brk
 
-    DEFCONST "O_RDONLY",,__O_RDONLY,0
-    DEFCONST "O_WRONLY",,__O_WRONLY,1
-    DEFCONST "O_RDWR",,__O_RDWR,2
-    DEFCONST "O_CREAT",,__O_CREAT,0100
-    DEFCONST "O_EXCL",,__O_EXCL,0200
-    DEFCONST "O_TRUNC",,__O_TRUNC,01000
-    DEFCONST "O_APPEND",,__O_APPEND,02000
-    DEFCONST "O_NONBLOCK",,__O_NONBLOCK,04000
+    DEFCONST "O_RDONLY",__O_RDONLY,0,0
+    DEFCONST "O_WRONLY",__O_WRONLY,0,1
+    DEFCONST "O_RDWR",__O_RDWR,0,2
+    DEFCONST "O_CREAT",__O_CREAT,0,0100
+    DEFCONST "O_EXCL",__O_EXCL,0,0200
+    DEFCONST "O_TRUNC",__O_TRUNC,0,01000
+    DEFCONST "O_APPEND",__O_APPEND,0,02000
+    DEFCONST "O_NONBLOCK",__O_NONBLOCK,0,04000
 
 ; ============================================================
 ; Built-in vars:
@@ -1499,36 +1499,24 @@ _PRINTWORD:
 ;   BASE    The current base for printing and reading numbers.
 ;  
 
-
-;	.macro defvar name, namelen, flags=0, label, initial=0
-;	defcode \name,\namelen,\flags,\label
-;	push $var_\name
-;	NEXT
-;	.data
-;	.align 4
-;var_\name :
-;	.int \initial
-;	.endm
-
-%macro DEFVAR 4 ; 1=name 2=flags 3=label 4=value
-    %strlen namelen %1
-        DEFCODE %1,namelen,%2,%3
-        push dword var_%3
+%macro DEFVAR 4 ; 1=name 2=label 3=flags 4=value
+        DEFCODE %1,%2,%3
+        push dword var_%2
         NEXT
     section .data
         align 4
-    var_%3:   ; Give it an asm label. Example: var_SZ for 'S0'
+    var_%2:   ; Give it an asm label. Example: var_SZ for 'S0'
         dd %4 ; note dd to reserve a "double" (4b)
 %endmacro
 
-    DEFVAR "STATE",,STATE,0
-    DEFVAR "HERE",,HERE,0
-    DEFVAR "S0",,SZ,0
-    DEFVAR "BASE",,BASE,10
-    DEFVAR "CSTART",,CSTART,0
-    DEFVAR "CEND",,CEND,0
-    DEFVAR "READFROM",,READFROM,read_from_fd ; LOADJF - make available to Forth???
-    DEFVAR "LATEST",,LATEST,name_LATEST ; points to last word defined...which will just
+    DEFVAR "STATE",STATE,0,0
+    DEFVAR "HERE",HERE,0,0
+    DEFVAR "S0",SZ,0,0
+    DEFVAR "BASE",BASE,0,10
+    DEFVAR "CSTART",CSTART,0,0
+    DEFVAR "CEND",CEND,0,0
+    DEFVAR "READFROM",READFROM,0,read_from_fd ; LOADJF - make available to Forth???
+    DEFVAR "LATEST",LATEST,0,name_LATEST ; points to last word defined...which will just
                                           ; happen to be self. We'll see if this works.
 
 
