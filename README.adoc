@@ -10,9 +10,7 @@ You can see the full original source in the `jonesforth/` directory in this repo
 Assemble and run `nasmjf` like so:
 
 ----
-$ nasm -f elf32 -g -o nasmjf.o nasmjf.asm
-$ ld nasmjf.o -o nasmjf
-$ rm nasmjf.o
+$ ./build.sh
 $ ./nasmjf
 JONESFORTH VERSION 1
 20643 CELLS REMAINING
@@ -55,6 +53,30 @@ I also have a placeholder for future notes and rambling thoughts about the proje
 http://ratfactor.com/nasmjf
 
 
+== Compiling and running
+
+You'll need the NASM assembler, a linker such as `ld`, and a Linux computer
+(JF relies on raw syscalls). And a sense of adventure.
+
+To build the `nasmjf` executabe, run `build.sh`. (Or see what it does.)
+
+Manually assemble and link like so:
+
+----
+$ nasm -f elf32 -g -o nasmjf.o nasmjf.asm
+$ ld nasmjf.o -o nasmjf
+$ rm nasmjf.o
+----
+
+Run by calling the executable you just compiled:
+
+----
+$ ./nasmjf
+'A' EMIT
+A
+----
+
+
 
 == Loads Jones's FORTH source on start
 
@@ -71,25 +93,6 @@ lines. A few will need to remain. Figuring out which is "left as an exercise
 for the reader", as they say.
 
 
-
-== Compiling and running
-
-Assemble and link with:
-
-```
-# assemble! (-g enables debugging symbols)
-nasm -f elf32 -g -o nasmjf.o nasmjf.asm
-
-# link
-ld nasmjf.o -o nasmjf ; rm nasmjf.o
-```
-
-Run by calling the executable you just compiled:
-```
-$ ./nasmjf
-'A' EMIT
-A
-```
 
 
 == GNU Debugger
@@ -154,7 +157,7 @@ one of the two main windows.
 I'm using the hardcopy feature to help me record running each milestone of
 progress in GDB sessions to test and document (and celebrate!) the work.
 
-An alias called `rc` starts my two-windowe session like so:
+An alias called `jf` starts my two-windowe session like so:
 
 ----
 alias jf='screen -c nasmjf/screenrc'
@@ -168,15 +171,13 @@ Here's the entirety of my current `.vimrc`:
 ----
 set tabstop=8 softtabstop=0 expandtab shiftwidth=4 smarttab
 colorscheme elflord
-" my favorite buffer switing mappings
+" simple buffer switching mappings for a handful of files
 nnoremap <right> :bn<cr>
 nnoremap <left> :bp<cr>
 " my eeepc chugs when trying to apply highlighting to this large asm file
 au BufRead jonesforth.S set syntax=text nowrap
 au BufRead nasmjf.listing set nowrap
 let mapleader = ","
-" run my 'r' script for nasmjf.asm
-nnoremap <leader>r :!r<cr>
 ----
 
 

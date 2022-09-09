@@ -69,3 +69,20 @@ Testing: jonesforth/test_stack_trace.f
     files and then some simpler find/replace in Vim, I
     managed to automate 99% of it.
 
+    And another night: added way more comments. I'm glad I
+    didn't put too much work into them when i first started
+    because I undertand it so much better now.
+
+    Also renamed 'r' script to 'build.sh' to make it clearer
+    what it is. Also added a test option to the script for a
+    total of four ways to play:
+
+        # Usage:
+        #
+        #   build.sh        Assemble, link
+        #   build.sh gdb    Assemble, link, and debug
+        #   build.sh test   Assemble, link, and test
+        #   build.sh run    Assemble, link, and run
+
+    Always good to keep honing the dev environment to keep
+    fast iterations as painless as possible.

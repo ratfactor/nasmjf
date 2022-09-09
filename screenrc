@@ -37,7 +37,7 @@ bind h hardcopy -h
 # exits... (The -i option for "interactive" shell is essentially ignored)
 #
 # This window attempts to assemble, link, and open GDB
-#screen bash -c "./r db"
+#screen bash -c "./build.sh gdb"
 #
 # Nope, now we just open a shell - the Forth interpreter is pretty good
 # at introspection now to the point where GDB is decreasingly helpful.

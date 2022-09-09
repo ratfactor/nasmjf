@@ -185,27 +185,39 @@
 ; +----------------------------------------------------------------------------+
 ; | Return stack and main memory - initial memory allocations                  |
 ; +----------------------------------------------------------------------------+
+; The BSS section is for uninitialized storage space. We'll reserve bytes (resb)
+; and make labels so we can refer to these addresses later. The following are
+; reserved:
+;  * buffer - storage for user input
+;  * return stack - addresses of words so EXIT can return to them
+;  * emit scratch - just a 4-byte bit of memory to store characters to print
 SECTION .bss
 %define buffer_size 4096
 return_stack: resb 8192
 return_stack_top: resb 4
-data_segment: resb 1024
 buffer:       resb buffer_size
-emit_scratch: resb 4 ; note: JF had this in .data as .space 1
+emit_scratch: resb 4 ; (note: JF had this in .data as .space 1)
 
 ; +----------------------------------------------------------------------------+
 ; | A label used as a pointer to the first word that will be executed          |
 ; +----------------------------------------------------------------------------+
+; We need to be able to indirectly address the first word because that's how
+; NEXT works - it can only jump to an address _in memory_. So we'll use this
+; cold_start label pointing to memory containing the address of the first
+; codeword by putting it in the esi register and then calling NEXT. And yes,
+; that's right, in standard Forth convention, we start with "QUIT"!
 SECTION .data
 cold_start: dd QUIT  ; we need a way to indirectly address the first word
 
 ; +----------------------------------------------------------------------------+
-; | "LOADJF" - Load jonesforth.f on start                                      |
+; | "LOADJF"                                                                   |
 ; +----------------------------------------------------------------------------+
+; I load the rest of the interpreter - a Forth source file - upon startup.
+;
 ; This is a major difference with my port. Search for 'LOADJF' in this file to
 ; see all of the places where I made changes or additions to support this.
 ;
-; This path is relative by default to make it easy to run nasmjf from
+; This path is relative by default to make it easy to run 'nasmjf' from
 ; the repo dir. But you can set it to an absolute path to allow running
 ; from any location.
 jfsource:     db "jonesforth/jonesforth.f", 0h ; LOADJF path, null-terminated
@@ -215,20 +227,26 @@ jfsource_end: db 0h                            ; LOADJF null-terminated string
 ; +----------------------------------------------------------------------------+
 ; | Program entry point - start the interpreter!                               |
 ; +----------------------------------------------------------------------------+
+; Now begins the real program. There's some housekeeping to do and almost all
+; of it is setting up memory and pointers to memory.
 SECTION .text
 global _start
 
 _start:
-    cld    ; Clear the "direction flag" which means the string instructions (such
-           ; as LODSD) work in increment order instead of decrement...
-    mov [var_SZ], esp ; save the regular stack pointer (used for data) in FORTH var S0!
+    ; Clear the "direction flag" which means the string instructions
+    ; (such as LODSD) work in increment order instead of decrement.
+    cld
 
-    mov ebp, return_stack_top ; Initialise the return stack pointer
-                              ; LOL, I accidentally had this set to the "bottom" of
-                              ; the stack instead and it grew up into my last word
-                              ; definition - which took FOREVER to figure out!
+    ; Save the current value of the stack pointer to S0. This is the first
+    ; variable we've seen that is available in Forth. You can examine and change
+    ; the value of this variable in the interpreter!
+    mov [var_SZ], esp
 
-    ; Allocate memory for Forth dictionary.
+    ; We will use ebp to keep track of the return stack, used by EXIT
+    ; to return to the previous word when the current one is finished.
+    mov ebp, return_stack_top
+
+    ; Now allocate main memory for Forth dictionary and data!
     ; First, we get the start address of the "break", which is where
     ; the data segment starts. Then we request a break that is at a new
     ; address N bytes larger. The OS does it and now we've got more
@@ -239,8 +257,8 @@ _start:
     ; on purpose! Most examples on the web scrupulously avoid explaining
     ; this.
     ;
-    ; My understanding is that Linux will ACTUALLY allocate the memory
-    ; when we attempt to use it. And it will do so in 4Kb chunks.
+    ; We store the start, end, and current "position" in this main
+    ; memory in variables. HERE is particularly important!
     xor ebx, ebx
     mov eax, __NR_brk         ; syscall brk
     int 0x80
@@ -252,10 +270,11 @@ _start:
     mov eax, __NR_brk         ; syscall brk again
     int 0x80
 
-    ; "LOADJF" Process jonesforth.f upon startup.
-    ; 'jfsource' is the string with the file path for jonesforth.f
+    ; "LOADJF" Process jonesforth.f upon startup. Open the file.
+    ; Then store the file descriptor (fd) so we can make the interpreter
+    ; read from the file rather than from STDIN.
     mov ecx, 0                ; LOADJF read only flag for open
-    mov ebx, jfsource         ; LOADJF path for open
+    mov ebx, jfsource         ; LOADJF address of string path for open
     mov eax, __NR_open        ; LOADJF open syscall
     int 80h                   ; LOADJF fd now in eax
     cmp eax, 0                ; LOADJF fd < 0 is an error!
@@ -264,9 +283,17 @@ _start:
 
     ; Now "prime the pump" for the NEXT macro by sticking an indirect
     ; address in esi. NEXT will jump to whatever's stored there.
+    ; Housekeeping stuff is over. The interpreter will start running now.
     mov esi, cold_start
     NEXT ; Start Forthing!
 
+    ; Handle failure of LOADJF!
+    ; I could have avoided a lot of code if I just exited when opening
+    ; the jonesforth.f file fails. But I thought it was important to make
+    ; a proper error message that was as helpful as possible. Because
+    ; if it fails, it's going to be _very_ confusing. I'm sure it will
+    ; happen to me years from now when I revisit this. And I don't want
+    ; to be confused!
 .loadjf_open_fail:             ; LOADJF
     ; For each of these write syscalls:
     ;     ebx = stderr fd
@@ -292,118 +319,157 @@ _start:
     int 80h                    ; LOADJF
     mov ebx, 1                 ; LOADJF exit code and fall through to exit
 
+    ; Exit program.
+    ; I define this here so the above LOADJF failure can fall through into it.
+    ; But it is also called when the user ends input (Ctrl+d) in the normal use
+    ; of the interpreter.
 exit_with_grace_and_beauty: ; (don't forget to set ebx to exit code)
     mov eax,__NR_exit       ; syscall: exit
     int 0x80                ; invoke syscall
 
 ; +----------------------------------------------------------------------------+
+; |                                                                            |
+; |                           Part Two: Words!                                 |
+; |                                                                            |
+; +----------------------------------------------------------------------------+
+; Everything from here on out is Forth bootstrapping itself as a series of word
+; definitions - first in machine code (written in assembly), then as words
+; defined as lists of addresses of other words. Lastly, as text in the Forth
+; language!
+;
+; +----------------------------------------------------------------------------+
 ; | Forth DOCOL implementation                                                 |
 ; +----------------------------------------------------------------------------+
-; This is the "interpreter" word - it is used at the beginning of proper Forth
-; words that are composed of other words (not machine code). It gets the esi
-; register pointed at the first word address and starts the NEXT macro.
+; This is the "interpreter" word - it is used at the beginning of "normal" Forth
+; words (composed of other words, not machine code). All DOCOL does is gets the
+; esi register pointed at the first word address and starts the NEXT macro.
+; (See my ASCII art boxes at the top of this document. Search for "DOCOL".)
+;
+; Note that esi doesn't contain the address of the next word to run. Instead,
+; it contains the next address that will *point to* the next word to run!
 DOCOL:
-    PUSHRSP esi     ; DOCOL: push esi on to the RSP return stack
-    add eax, 4      ; eax points to DOCOL (me!) in word definition. Go to next.
-    mov esi, eax    ; Put the next word pointer into esi
+    PUSHRSP esi     ; push esi on to the "RSP" return stack
+    add eax, 4      ; eax currently points to DOCOL (me!), point to next addr
+    mov esi, eax    ; Load the next word pointer into esi
     NEXT
 
 ; +----------------------------------------------------------------------------+
-; "flags" for Forth word definitions
+; | Word header flags                                                          |
+; +----------------------------------------------------------------------------+
+; These are bits that can be ANDed together to indicate special properties of
+; the word: 
+;  * IMMED - an "immediate" word runs in compile mode
+;  * HIDDEN - a word is usually hidden while it's being compiled!
+;  * LENMASK - to save space (!), the word name length is combined with flags
 %assign F_IMMED 0x80
 %assign F_HIDDEN 0x20
 %assign F_LENMASK 0x1f
 
-; link holds address of last word defined (to make linked list)
-; must be %define rather than %assign or we'll run afoul assigning
-; the name_label address below (
+; Link holds address of last word defined (to make linked list)
+; (NASM Note: Must be %define rather than %assign or we'll run afoul
+; assigning the name_label address below.)
 %define link 0           ; null link - beginning of the linked list
 
-; Forth commands or instructions are called "words".
-; There are two kinds of words defined in JonesForth: 
-;   1. "code words" are pure machine language implementations
-;   2. "data words" are defined as a series of pointers to words
-; Both start with a pointer to a code word's instructions which can
-; be executed. The differene is that a code word points to its own
-; instructions and a data word points to a word called "DOCOL", ("do
-; the colon word") which loads and runs the individual words.
-
-; in memory, the words look like this for examples "foo" and "bar":
+; +----------------------------------------------------------------------------+
+; | DEFWORD and DEFCODE macros                                                 |
+; +----------------------------------------------------------------------------+
+; As mentioned in the beginning, there are two kinds of words in Forth: 
 ;
-;      Code Word                 Data Word
-;   name_foo:                 name_bar:
-;       (word link)               (word link)
-;       (namelen + flags)         (namelen + flags)
-;       "foo"                     "bar"
-;   foo:                      bar:
-;       (ptr to DOCOL)            (ptr to code_bar)
-;       (ptr to a word)       code_bar:
-;       (ptr to a word)           (machine code)
-;       (ptr to a word)           (machine code)
-;       ...                       ...
+;   1. Code words are pure machine language
+;   2. Regular words are defined as a series of pointers to other words
 ;
-; Data words are defined with the help of the DEFWORD macro.
-; Code words are defined with the help of the DEFCODE macro.
-; 
-
-; The difference is that DEFWORD will start with the addr of the DOCOL
-; interpreter and will be followed by pointers to other words.
-; DEFCODE will be followed by pure ASM machine code.
-
+; Both start with a header: link, name length + flags, name.
+;
+; After the header, both start with an address: a pointer to code to be
+; executed immediatly when we run the word.
+;
+; The big difference is that a code word points to its own instructions, while
+; a regular word points to DOCOL, the "interpreter word", which sets the esi
+; register and uses NEXT to execute the rest of the word definition.
+;
+; Refer again to the ASCII art boxes a the top of this file to see how the two
+; types of words are laid out in memory.
+;
+; The following assembler macros help us create both types of words from
+; within assembly.
+;
+; The two macros are very similar. But notice how DEFWORD begins the body
+; of the word after the header with the address of DOCOL.
+;
+; Define a regular word. Create header from name and flags, then start the
+; word body with the address of DOCOL.
 %macro DEFWORD 3 ; 1=name 2=label 3=flags
-        %strlen namelen %1
-        SECTION .data
+    %strlen namelen %1 ; NASM calculates this for us!
+    SECTION .data
+    align 4            ; Everything is aligned on 4 byte boundaries.
+
+    ; Start of the word header
+    ; ------------------------
+    global name_%2     ; name_<label> for use in assembly
+    name_%2:
+        dd link                ; link the previous word's addr
+        %define link name_%2   ; store *my* link addr for next time
+        db %3 + namelen        ; flags + namelen (packed into byte)
+        db %1                  ; name string ("FOO")
         align 4
 
-        global name_%2 ; name_<label>
-        name_%2:
-            dd link                ; the previous word's addr
-            %define link name_%2   ; store this link addr for next time
-            db %3 + namelen        ; flags + namelen 
-            db %1                  ; name string
-            align 4
-
-         global %2 ; <label>
-         %2:
-             dd DOCOL ; addr of the "interpreter" code word that will handle
-                      ; the list of forth word addrs that will follow
+    ; Start of the word body
+    ; ----------------------
+     global %2    ; <label> for use in assembly
+     %2:
+         dd DOCOL ; Pointer to DOCOL code word that will execute the
+                  ; word pointer that will follow the use of this macro.
 %endmacro
 
+; Define a code word. Create header from name and flags, then start the
+; word body with the next address after itself. See comments in DEFWORD
+; above for explanation of the header portion.
 %macro DEFCODE 3 ; 1=name 2=label 3=flags
-        %strlen namelen %1
-        SECTION .data
+    %strlen namelen %1
+    SECTION .data
+    align 4
+
+    ; Start of the word header
+    ; ------------------------
+    global name_%2
+    name_%2:
+        dd link
+        %define link name_%2   ; store this link addr for next time
+        db %3 + namelen        ; flags + namelen 
+        db %1                  ; name string
         align 4
 
-        ; name_<label>
-        global name_%2
-        name_%2:
-            dd link                ; the previous word's addr
-            %define link name_%2   ; store this link addr for next time
-            db %3 + namelen        ; flags + namelen 
-            db %1                  ; name string
-            align 4
+    ; Start of the word body
+    ; ----------------------
+    global %2
+    %2:
+        dd code_%2 ; The address of the label that follows...
+        align 4
 
-        ; <label>
-        global %2
-        %2:
-            dd code_%2 ; addr of code_label, for the asm code that will follow
-            align 4
-
-        ; code_<label>
-        SECTION .text
-    global code_%4
-        code_%2:
-            ; Then whatever follows this macro output is the assembly
-            ; code for the Forth word...
+    SECTION .text  ; Assembly intructions (machine code) will follow.
+    global code_%2
+    code_%2:
+        ; Whatever follows the use of this macro is the machine code
+        ; definition of the code word. We can execute this word directly
+        ; in assembly by jumping to this label. We can "compile it" into
+        ; a regular word with the body label (%2). And like all words,
+        ; we can execute it in Forth using it's string name.
 %endmacro
 
-    ; the name "QUIT" makes sense from a certain point of view: it
-   
-    DEFWORD "QUIT",QUIT,0
-    dd R0           ; push R0 (addr of top of return stack)
-    dd RSPSTORE     ; store R0 in return stack pointer (ebp)
-    dd INTERPRET    ; interpret the next word
-    dd BRANCH,-8    ; and loop (indefinitely)
+
+
+
+; TODO: figure out how to arrange these words definitions - I should be able
+; to put order them however I like now. But should they be by topic or should
+; I have all the code words together and all the regular words together?
+
+; the name "QUIT" makes sense from a certain point of view
+
+DEFWORD "QUIT",QUIT,0
+dd R0           ; push R0 (addr of top of return stack)
+dd RSPSTORE     ; store R0 in return stack pointer (ebp)
+dd INTERPRET    ; interpret the next word
+dd BRANCH,-8    ; and loop (indefinitely)
 
 
 ; ============================================================
