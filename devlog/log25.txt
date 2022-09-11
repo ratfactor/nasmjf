@@ -86,3 +86,9 @@ Testing: jonesforth/test_stack_trace.f
 
     Always good to keep honing the dev environment to keep
     fast iterations as painless as possible.
+
+    Later: more comments in. Making steady progress. Now
+    trying to figure out if I should arrange the word
+    definitions in an attempt to explain them, or just put
+    all the code words at the front and all the regular
+    words at the end?

@@ -456,89 +456,85 @@ DOCOL:
         ; we can execute it in Forth using it's string name.
 %endmacro
 
+; +----------------------------------------------------------------------------+
+; +----------------------------------------------------------------------------+
+; What follow are 9 regular words and 130 code words. Only some fraction of the
+; code words are really be required here. They're just more efficient if they're
+; implemented in assembly rather than Forth itself.
 
-
-
-; TODO: figure out how to arrange these words definitions - I should be able
-; to put order them however I like now. But should they be by topic or should
-; I have all the code words together and all the regular words together?
-
-; the name "QUIT" makes sense from a certain point of view
-
+; +----------------------------------------------------------------------------+
+; | QUIT: the "outer interpreter"                                              |
+; +----------------------------------------------------------------------------+
+; At the top of this file, I describe the shape of word definitions and the
+; "interpreter word" and the NEXT and EXIT mechanisms. Now we can take a gander
+; at the outer main loop that really holds all of this together and makes this
+; Forth an actual interpreter in the sense most of us expect.
+;
+; You'll notice that QUIT contains neither a NEXT nor EXIT. This is the outer
+; loop ; and a NEXT will eventually bring us back here, where an unconditional
+; loop ; will keep looking for input and executing it.
+;
+; (And yes, "QUIT" is a bizarre name for this word.)
+;
+; I think this might be a helpful way to think of the nested nature of QUIT
+; and the two types of words:
+;
+; QUIT (INTERPRET)
+;     * regular word
+;         DOCOL
+;         NEXT
+;         * regular word
+;             DOCOL (codeword
+;             NEXT
+;             * code word
+;                 <machine code>
+;             NEXT
+;             * code word
+;                 <machine code>
+;             NEXT
+;         EXIT
+;         NEXT
+;    EXIT
+;    NEXT
+; QUIT (BRANCH -8 back to INTERPRET for more)
+;   
+; Notice how every code word ends in a NEXT and every regular word ends in
+; an EXIT, which also has a NEXT to go to back up the call stack.
+;
+; And when those words are done, the next address to execute happens to
+; be the unconditional branch in QUIT that starts the "outer interpreter"
+; loop all over again.
+;
+; Here's the definition of QUIT. Notice how much easier it is to write than
+; to describe!
 DEFWORD "QUIT",QUIT,0
-dd R0           ; push R0 (addr of top of return stack)
-dd RSPSTORE     ; store R0 in return stack pointer (ebp)
-dd INTERPRET    ; interpret the next word
-dd BRANCH,-8    ; and loop (indefinitely)
+    dd R0           ; push R0 (addr of top of return stack)
+    dd RSPSTORE     ; store R0 in return stack pointer (ebp)
+    dd INTERPRET    ; interpret the next word
+    dd BRANCH,-8    ; and loop (indefinitely)
 
+; +----------------------------------------------------------------------------+
+; | EXIT                                                                       |
+; +----------------------------------------------------------------------------+
+; And here's EXIT. Look at how tiny this is! This ends every regular word by
+; popping the "return address" pushed by DOCOL when the word began.
+DEFCODE "EXIT",EXIT,0
+    POPRSP esi            ; pop return stack into esi
+NEXT
 
-; ============================================================
-; Words in ASM
-
-    ; TICK (or single quote: ') gets the address of the word
-    ; that matches the next word of input text. Uses the same
-    ; lodsd trick as LIT to grab the next word of input without
-    ; executing it. Only works while in compile state. (: ... ;)
-    ; It's not an immediate word, so it executes at run time,
-    ; which is why we end up with the address of the next word
-    ; (which was matched at compile time) to put on the stack!
-    DEFCODE "'",TICK,0
-    lodsd                   ; Moves value at esi to eax, esi++
-    push eax                ; Push address on the stack
-    NEXT
-
-    ; BRANCH is the simplest possible way to loop - it always
-    ; moves the word pointer by the amount in the next value
-    ; pointed to by esi! It's helpful to see how LIT works because
-    ; it's a similar premise - the value after BRANCH isn't a
-    ; word address, it's the amount to add to esi.
-    ; To branch/loop back to a previous instruction, you provide
-    ; a negative offset.
-    ; esi currently points at the offset number.
-    DEFCODE "BRANCH",BRANCH,0
-    add esi, [esi]          ; add the offset to the instruction pointer
-    NEXT
-
-    ; 0BRANCH is the same thing, but with a condition: it only
-    ; jumps if the top of the stack is zero.
-    DEFCODE "0BRANCH",ZBRANCH,0
-    pop eax
-    test eax, eax           ; top of stack is zero?
-    jz code_BRANCH          ; if so, jump back to BRANCH
-    lodsd                   ; or skip the offset (esi to eax, esi++)
-    NEXT
-
-    ; Another primitive - this one is used to implement the string
-    ; words in Forth (." and S"). I'll just port it for now, then
-    ; test it later.
-    ; The lodsd "trick" (see also LIT) to load the next 4 bytes of
-    ; memory from the address at the current instruction pointer
-    ; (esi) into eax and then increment esi to skip over it so
-    ; NEXT doesnt try to execute it.
-    DEFCODE "LITSTRING",LITSTRING,0
-    lodsd                   ; get the length of the string into eax
-    push esi                ; push the address of the start of the string
-    push eax                ; push it on the stack
-    add esi, eax            ; skip past the string
-    add esi, 3              ; but round up to next 4 byte boundary
-    and esi, ~3
-    NEXT
-
-    ; Same deal here - another primitive. This one uses a Linux syscall
-    ; to print a string.
-    DEFCODE "TELL",TELL,0
-    mov ebx, 1        ; 1st param: stdout
-    pop edx        ; 3rd param: length of string
-    pop ecx        ; 2nd param: address of string
-    mov eax,__NR_write      ; write syscall
-    int 80h
-    NEXT
-
-
-        ;
-        ; * * *   The Forth interpreter!   * * *
-        ;
-    DEFCODE "INTERPRET",INTERPRET,0
+; +----------------------------------------------------------------------------+
+; | The Forth Interpreter words                                                |
+; +----------------------------------------------------------------------------+
+; The following three words contain some pretty beefy assembly code. They get
+; input, split it into words, find the word definitions, and execute them:
+;
+; KEY        - Buffers input from STDIN (or a file)
+; WORD       - Calls KEY, gets a whitespace-delimited "word" of text
+; INTERPRET  - Calls WORD, looks up words in dictionary, attempts to
+;              handle literal number values, and executes the results.
+;
+; +----------------------------------------------------------------------------+
+DEFCODE "INTERPRET",INTERPRET,0
     call _WORD              ; Returns %ecx = length, %edi = pointer to word.
 
     ; Is it in the dictionary?
@@ -618,23 +614,16 @@ dd BRANCH,-8    ; and loop (indefinitely)
     mov edx,1               ; 1 char long
     mov eax,__NR_write    ; write syscall
     int 80h
+NEXT
 
-    NEXT
-
-
-        ; ***** WORD *****
-        ; Reads a word of input!
-        ; 1. Skips whitespace
-        ; 2. Calls KEY to read characters until more whitespace
-        ; 3. Calculates length of word, returns address and length on stack
-        ;
-        ; Forth strings are address+length, no NUL termination.
-
-    DEFCODE "WORD",FWORD,0  ; Note changed nasm reserved keyword WORD to FWORD!
+; +----------------------------------------------------------------------------+
+; Return a Forth string: an address and length (unlike C strings, we don't end
+; with a sentinel NUL.)
+DEFCODE "WORD",FWORD,0  ; Note changed nasm reserved keyword WORD to FWORD!
     call _WORD
     push edi                ; push base address
     push ecx                ; push length
-    NEXT
+NEXT
 _WORD:
     ; Search for first non-blank character.  Also skip \ comments.
 .skip_non_words:
@@ -657,7 +646,6 @@ _WORD:
     mov ecx, edi            ; return it
     mov edi, word_buffer    ; return start address of the word
     ret
-
 .skip_comment: ; skip \ comment to end of current line
     call _KEY
     cmp al,`\n`             ; eol? (escapes okay in backtick strings in nasm)
@@ -667,17 +655,13 @@ _WORD:
 SECTION .data
 word_buffer:
     db 32 dup (0) ; 32 bytes of buffer for word names
-
 SECTION .text
 
-        ; ***** KEY *****
-        ; This should really be called "char" because it gets a character of
-        ; input, not a "key". It's easy to imagine the historical
-        ; implementation fitting the name, though.
-        ;
-        ; LOADJF: This has my "hack" to make KEY read from file descriptors
-        ;         other than STDIN so we can read jonesforth.f on start.
-    DEFCODE "KEY",KEY,0
+; +----------------------------------------------------------------------------+
+; This should really be called "char" because it gets a character of
+; input, not a "key". It's easy to imagine the historical
+; implementation fitting the name, though.
+DEFCODE "KEY",KEY,0
     call _KEY
     push eax        ; push return value on stack
     NEXT
@@ -720,15 +704,76 @@ _KEY:
     jmp exit_with_grace_and_beauty
 
 
-        ; ***** TCFA *****
-        ; Turn a dictionary pointer into a codeword pointer.
-        ; This is where we use the stored length of the word name
-        ; to skip to the beginning of the code.
-    DEFCODE ">CFA",TCFA,0
+; +----------------------------------------------------------------------------+
+; | Some Forth primitives                                                      |
+; +----------------------------------------------------------------------------+
+; TICK (or single quote: ') gets the address of the word
+; that matches the next word of input text. Uses the same
+; lodsd trick as LIT to grab the next word of input without
+; executing it. Only works while in compile state. (: ... ;)
+; It's not an immediate word, so it executes at run time,
+; which is why we end up with the address of the next word
+; (which was matched at compile time) to put on the stack!
+DEFCODE "'",TICK,0
+    lodsd                   ; Moves value at esi to eax, esi++
+    push eax                ; Push address on the stack
+NEXT
+
+; BRANCH is the simplest possible way to loop - it always
+; moves the word pointer by the amount in the next value
+; pointed to by esi! It's helpful to see how LIT works because
+; it's a similar premise - the value after BRANCH isn't a
+; word address, it's the amount to add to esi.
+; To branch/loop back to a previous instruction, you provide
+; a negative offset.
+; esi currently points at the offset number.
+DEFCODE "BRANCH",BRANCH,0
+    add esi, [esi]          ; add the offset to the instruction pointer
+NEXT
+
+; 0BRANCH is the same thing, but with a condition: it only
+; jumps if the top of the stack is zero.
+DEFCODE "0BRANCH",ZBRANCH,0
+    pop eax
+    test eax, eax           ; top of stack is zero?
+    jz code_BRANCH          ; if so, jump back to BRANCH
+    lodsd                   ; or skip the offset (esi to eax, esi++)
+NEXT
+
+; Another primitive - this one is used to implement the string
+; words in Forth (." and S"). I'll just port it for now, then
+; test it later.
+; The lodsd "trick" (see also LIT) to load the next 4 bytes of
+; memory from the address at the current instruction pointer
+; (esi) into eax and then increment esi to skip over it so
+; NEXT doesnt try to execute it.
+DEFCODE "LITSTRING",LITSTRING,0
+    lodsd                   ; get the length of the string into eax
+    push esi                ; push the address of the start of the string
+    push eax                ; push it on the stack
+    add esi, eax            ; skip past the string
+    add esi, 3              ; but round up to next 4 byte boundary
+    and esi, ~3
+NEXT
+
+; Same deal here - another primitive. This one uses a Linux syscall
+; to print a string.
+DEFCODE "TELL",TELL,0
+    mov ebx, 1        ; 1st param: stdout
+    pop edx        ; 3rd param: length of string
+    pop ecx        ; 2nd param: address of string
+    mov eax,__NR_write      ; write syscall
+    int 80h
+NEXT
+
+; Turn a dictionary pointer into a codeword pointer.
+; This is where we use the stored length of the word name
+; to skip to the beginning of the code.
+DEFCODE ">CFA",TCFA,0
     pop edi
     call _TCFA
     push edi
-    NEXT
+NEXT
 _TCFA:
     xor eax,eax
     add edi,4               ; Skip link pointer.
@@ -740,24 +785,22 @@ _TCFA:
     and edi,~3              ;   Add ...00000011 and mask ...11111100.
     ret                     ;   For more, see log06.txt in this repo.
 
-        ; ***** TDFA *****
-        ; Turn a dictionary pointer into a "data" pointer.
-        ; Data simply being the word addresses immediately
-        ; following the codeword (4 bytes later).
-    DEFWORD ">DFA",TDFA,0
+; Turn a dictionary pointer into a "data" pointer.
+; Data simply being the word addresses immediately
+; following the codeword (4 bytes later).
+DEFWORD ">DFA",TDFA,0
     dd TCFA                 ; get codeword address
     dd INCR4                ; advance 4 bytes
-    dd EXIT                 ; return from this word
+dd EXIT                 ; return from this word
 
-        ; ***** NUMBER *****
-        ; parse numeric literal from input using BASE as radix
-    DEFCODE "NUMBER",NUMBER,0
+; parse numeric literal from input using BASE as radix
+DEFCODE "NUMBER",NUMBER,0
     pop ecx                 ; length of string
     pop edi                 ; start address of string
     call _NUMBER
     push eax                ; parsed number
     push ecx                ; number of unparsed characters (0 = no error)
-    NEXT
+NEXT
 _NUMBER:
     xor eax,eax
     xor ebx,ebx
@@ -813,27 +856,23 @@ _NUMBER:
 .return: ;(5)
     ret
 
-
-
-        ; ***** LIT *****
-        ; esi always points to the next thing. Usually this is
-        ; the next word. But in this case, it's the literal value
-        ; to push onto the stack.
-    DEFCODE "LIT",LIT,0
+; esi always points to the next thing. Usually this is
+; the next word. But in this case, it's the literal value
+; to push onto the stack.
+DEFCODE "LIT",LIT,0
     lodsd                   ; loads the value at esi into eax, increments esi
     push eax                ; push the literal number on to stack
-    NEXT
+NEXT
 
-        ; ***** FIND *****
-    ; Before this, we'll have called _WORD which pushed (returned):
-        ;     ecx = length
-        ;     edi = start of word (addr)
-    DEFCODE "FIND",FIND,0
+; Before this, we'll have called _WORD which pushed (returned):
+;     ecx = length
+;     edi = start of word (addr)
+DEFCODE "FIND",FIND,0
     pop ecx                 ; length of word
     pop edi                 ; buffer with word
     call _FIND
     push eax                ; push address of dict entry (or null) as return val
-    NEXT
+NEXT
 
 _FIND:
     push esi                ; _FIND! Save esi, we'll use this reg for string comparison
@@ -841,7 +880,7 @@ _FIND:
     ; Now we start searching backwards through the dictionary for this word.
     mov edx,[var_LATEST]    ; LATEST points to name header of the latest word in the dictionary
 .test_word:
-        test edx,edx            ; NULL pointer?  (end of the linked list)
+    test edx,edx            ; NULL pointer?  (end of the linked list)
     je .not_found
 
     ; First compare the length expected and the length of the word.
@@ -876,16 +915,8 @@ _FIND:
     xor eax,eax             ; Return zero to indicate not found (aka null ptr)
     ret
 
-
-
-
-
-
-
-
-        ; CREATE makes words! Specifically, the header portion of words.
-
-    DEFCODE "CREATE",CREATE,0
+; CREATE makes words! Specifically, the header portion of words.
+DEFCODE "CREATE",CREATE,0
     pop ecx                   ; length of word name
     pop ebx                   ; address of word name
 
@@ -908,18 +939,16 @@ _FIND:
     mov eax, [var_HERE]
     mov [var_LATEST], eax
     mov [var_HERE], edi
-    NEXT
+NEXT
 
-
-    ; COMMA (,) 
-    ; This is a super primitive word used to compile words. It puts the
-    ; currently-pushed value from the stack to the position pointed to
-    ; by HERE and increments HERE to the next 4 bytes.
-
-    DEFCODE ",",COMMA,0
+; COMMA (,) 
+; This is a super primitive word used to compile words. It puts the
+; currently-pushed value from the stack to the position pointed to
+; by HERE and increments HERE to the next 4 bytes.
+DEFCODE ",",COMMA,0
     pop eax                ; Code pointer to store.
     call _COMMA
-    NEXT
+NEXT
     _COMMA:
     mov edi, [var_HERE]
     cmp edi, [var_CSTART]
@@ -932,79 +961,54 @@ _FIND:
 .oops:
     nop
 
-    ; LBRAC and RBRAC ([ and ])
-    ; Simply toggle the STATE variable (0=immediate, 1=compile)
-    ; So:
-    ;       <compile mode> [ <immediate mode> ] <compile mode>
-    ;
-    ; Note that LBRAC has the immediate flag set because otherwise
-    ; it would get compiled rather than switch modes then and there.
-
-    DEFCODE "[",LBRAC,F_IMMED
+; LBRAC and RBRAC ([ and ])
+; Simply toggle the STATE variable (0=immediate, 1=compile)
+; So:
+;       <compile mode> [ <immediate mode> ] <compile mode>
+;
+; Note that LBRAC has the immediate flag set because otherwise
+; it would get compiled rather than switch modes then and there.
+DEFCODE "[",LBRAC,F_IMMED
     xor eax, eax
     mov [var_STATE], eax      ; Set STATE to 0 (immediate)
-    NEXT
+NEXT
 
-    DEFCODE "]",RBRAC,0
+DEFCODE "]",RBRAC,0
     mov [var_STATE], word 1   ; Set STATE to 1 (compile)
-    NEXT
+NEXT
 
-
-    ; Just two more "code" word definitions before we can define
-    ; COLON out of pure words.
-    ;
-    ; HIDDEN toggles the hidden flag for the dictionary entry
-    ; at the address on the stack
-    ;
-    ; EXIT pops the return stack value into esi - this is the
-    ; reverse of what DOCOL does.
-
-    DEFCODE "HIDDEN",HIDDEN,0
+; HIDDEN toggles the hidden flag for the dictionary entry
+; at the address on the stack
+DEFCODE "HIDDEN",HIDDEN,0
     pop edi                 ; Dictionary entry, first byte is link
     add edi, 4              ; Move to name/flags byte.
     xor [edi], word F_HIDDEN  ; Toggle the HIDDEN bit in place.
-    NEXT
+NEXT
 
-; Let's say we have a word "foo" that 
-;
-; QUIT
-;   foo (word)
-;     -> DOCOL (codeword)
-;        NEXT
-;     (other words)
-;     -> bar (word)
-;         -> DOCOL (codeword
-;            NEXT
-;         (other words)
-;         -> EXIT
-;     -> EXIT
-;                         
-    DEFCODE "EXIT",EXIT,0
-    POPRSP esi            ; pop return stack into esi
-    NEXT
 
-    ; COLON (:) creates the new word header and starts compile mode
-    ; It also sets the new definition to hidden so the word isn't
-    ; discovered while it is being compiled.
-
-    DEFWORD ":",COLON,0
+; +----------------------------------------------------------------------------+
+; | COLON and SEMICOLON: The Compiler!                                         |
+; +----------------------------------------------------------------------------+
+; COLON (:) creates the new word header and starts compile mode
+; It also sets the new definition to hidden so the word isn't
+; discovered while it is being compiled.
+DEFWORD ":",COLON,0
     dd FWORD                 ; Get the name of the new word
     dd CREATE               ; CREATE the dictionary entry / header
     dd LIT, DOCOL, COMMA    ; Append DOCOL  (the codeword).
     dd LATEST, FETCH, HIDDEN ; Make the word hidden while it's being compiled.
     ;dd LATEST, HIDDEN ; Make the word hidden while it's being compiled.
     dd RBRAC                ; Go into compile mode.
-    dd EXIT                 ; Return from the function.
+dd EXIT                 ; Return from the function.
 
-    ; SEMICOLON (;) is an immediate word (F_IMMED) and it ends compile
-    ; mode and unhides the word entry being compiled.
-
-    DEFWORD ";",SEMICOLON,F_IMMED
+; SEMICOLON (;) is an immediate word (F_IMMED) and it ends compile
+; mode and unhides the word entry being compiled.
+DEFWORD ";",SEMICOLON,F_IMMED
     dd LIT, EXIT, COMMA     ; Append EXIT (so the word will return).
     dd LATEST, FETCH, HIDDEN ; Unhide word now that it's been compiled.
     ;dd LATEST, HIDDEN ; Unhide word now that it's been compiled.
     dd LBRAC                ; Go back to IMMEDIATE mode.
-    dd EXIT                 ; Return from the function.
+dd EXIT                 ; Return from the function.
 
 
 
@@ -1012,9 +1016,6 @@ _FIND:
 
 
 
-; =============================================================================
-; Final word definitions
-; =============================================================================
 
     ; EMIT just displays a character of output from the stack.
     ; It doesnt attempt to be efficient at all (no buffering, etc.)
