@@ -92,3 +92,14 @@ Testing: jonesforth/test_stack_trace.f
     definitions in an attempt to explain them, or just put
     all the code words at the front and all the regular
     words at the end?
+
+    Several more nights later: Done! It may not be perfect
+    and perhaps I'll come back with more explanations and
+    check over all of my comments again. But I'm calling
+    this thing complete for now.
+
+    I hope it was fun following along.
+
+        Happy hacking!
+
+        -Dave

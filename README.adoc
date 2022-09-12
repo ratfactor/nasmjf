@@ -34,10 +34,8 @@ See "Loads Jones's FORTH source on start" below.
 
 == Current status
 
-It's done! It passes the original JONESFORTH tests. See `test.sh` in
-the root of the repo (or read `devlog/log24.txt`).
-
-Now I'm cleaning up the assembly source.
+It's done! It passes the original JONESFORTH tests. See
+`test.sh` in the root of this repo.
 
 
 == Why does this exist?
@@ -75,7 +73,6 @@ $ ./nasmjf
 'A' EMIT
 A
 ----
-
 
 
 == Loads Jones's FORTH source on start

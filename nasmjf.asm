@@ -533,7 +533,13 @@ NEXT
 ; INTERPRET  - Calls WORD, looks up words in dictionary, attempts to
 ;              handle literal number values, and executes the results.
 ;
+; Now, here they are in the opposite order:
+;
 ; +----------------------------------------------------------------------------+
+; | INTERPRET                                                                  |
+; +----------------------------------------------------------------------------+
+; Get's "word" of input (that term is overloaded here) and determines what to
+; do with it.
 DEFCODE "INTERPRET",INTERPRET,0
     call _WORD              ; Returns %ecx = length, %edi = pointer to word.
 
@@ -617,8 +623,10 @@ DEFCODE "INTERPRET",INTERPRET,0
 NEXT
 
 ; +----------------------------------------------------------------------------+
+; | WORD                                                                       |
+; +----------------------------------------------------------------------------+
 ; Return a Forth string: an address and length (unlike C strings, we don't end
-; with a sentinel NUL.)
+; with a sentinel NUL.) This should perhaps be called "token".
 DEFCODE "WORD",FWORD,0  ; Note changed nasm reserved keyword WORD to FWORD!
     call _WORD
     push edi                ; push base address
@@ -658,9 +666,10 @@ word_buffer:
 SECTION .text
 
 ; +----------------------------------------------------------------------------+
-; This should really be called "char" because it gets a character of
-; input, not a "key". It's easy to imagine the historical
-; implementation fitting the name, though.
+; | KEY                                                                        |
+; +----------------------------------------------------------------------------+
+; This should really be called "char" because it gets a character of input, not
+; a "key". It's easy to imagine the historical implementation fitting the name.
 DEFCODE "KEY",KEY,0
     call _KEY
     push eax        ; push return value on stack
@@ -873,7 +882,6 @@ DEFCODE "FIND",FIND,0
     call _FIND
     push eax                ; push address of dict entry (or null) as return val
 NEXT
-
 _FIND:
     push esi                ; _FIND! Save esi, we'll use this reg for string comparison
 
@@ -1010,19 +1018,12 @@ DEFWORD ";",SEMICOLON,F_IMMED
     dd LBRAC                ; Go back to IMMEDIATE mode.
 dd EXIT                 ; Return from the function.
 
-
-
-
-
-
-
-
-    ; EMIT just displays a character of output from the stack.
-    ; It doesnt attempt to be efficient at all (no buffering, etc.)
-    DEFCODE "EMIT",EMIT,0
+; EMIT just displays a character of output from the stack.
+; It doesnt attempt to be efficient at all (no buffering, etc.)
+DEFCODE "EMIT",EMIT,0
     pop eax
     call _EMIT
-    NEXT
+NEXT
 _EMIT:
     mov [emit_scratch], al  ; put char to print at scratch space
     mov ebx, 1              ; syscall param 1: stdout
@@ -1084,79 +1085,77 @@ _PRINTWORD:
     mov al, [edx+4]         ; al = flags+length field
     and al, F_LENMASK       ; al = just length of name
     add edx,5               ; move pointer to name string
-;    push ecx               ; Save the length
-;    push edi               ; Save the address (repe cmpsb will move this pointer)
-;    lea esi,[edx+5]        ; Dictionary string we are checking against.
     mov ebx,1               ; 1st param: stdout
     mov ecx,edx             ; 2nd param: address to print
     mov edx,eax             ; 3rd param: length of string
     mov eax,__NR_write      ; write syscall
     int 80h
 
-    ; ==============================
-    ; stack manipulation words
+; +----------------------------------------------------------------------------+
+; | Stack manipulation words                                                   |
+; +----------------------------------------------------------------------------+
 
-    ; drop top of stack
-    DEFCODE "DROP",DROP,0
+; drop top of stack
+DEFCODE "DROP",DROP,0
     pop eax
-    NEXT
+NEXT
 
-    ; swap top two elements
-    DEFCODE "SWAP",SWAP,0
+; swap top two elements
+DEFCODE "SWAP",SWAP,0
     pop eax
     pop ebx
     push eax
     push ebx
-    NEXT
+NEXT
 
-    ; duplicate element on top of stack
-    DEFCODE "DUP",DUP,0
+; duplicate element on top of stack
+DEFCODE "DUP",DUP,0
     mov eax, [esp]
     push eax
-    NEXT
+NEXT
 
-    ; duplicate second element of stack to top
-    DEFCODE "OVER",OVER,0
+; duplicate second element of stack to top
+DEFCODE "OVER",OVER,0
     mov eax, [esp+4]
     push eax
-    NEXT
+NEXT
 
-    ; rotate the top three items on stack (ABC -> BCA)
-    DEFCODE "ROT",ROT,0
+; rotate the top three items on stack (ABC -> BCA)
+DEFCODE "ROT",ROT,0
     pop eax
     pop ebx
     pop ecx
     push ebx
     push eax
     push ecx
-    NEXT
+NEXT
 
-    ; reverse rotate top three items on stack (ABC -> CAB)
-    DEFCODE "-ROT",NROT,0
+; reverse rotate top three items on stack (ABC -> CAB)
+DEFCODE "-ROT",NROT,0
     pop eax
     pop ebx
     pop ecx
     push eax
     push ecx
     push ebx
-    NEXT
+NEXT
 
-    ; drop top two elements from stack
-    DEFCODE "2DROP",TWODROP,0
+; drop top two elements from stack
+DEFCODE "2DROP",TWODROP,0
     pop eax
     pop eax
-    NEXT
+NEXT
 
-    ; duplicate top two elements on stack
-    DEFCODE "2DUP",TWODUP,0
+; duplicate top two elements on stack
+DEFCODE "2DUP",TWODUP,0
     mov eax, [esp]
     mov ebx, [esp + 4]
     push ebx
     push eax
-    NEXT
+NEXT
 
-    ; swap top two pairs (ABCD -> CDAB)
-    DEFCODE "2SWAP",TWOSWAP,0
+; swap top two pairs (ABCD -> CDAB)
+DEFCODE "2SWAP",TWOSWAP,0
     pop eax
     pop ebx
     pop ecx
@@ -1165,441 +1164,454 @@ _PRINTWORD:
     push eax
     push edx
     push ecx
-    NEXT
+NEXT
 
-    ; duplicate top element on stack if it's non-zero
-    DEFCODE "?DUP",QDUP,0
+; duplicate top element on stack if it's non-zero
+DEFCODE "?DUP",QDUP,0
     mov eax, [esp]
     test eax, eax
     jz .skip
     push eax
 .skip:
-    NEXT
+NEXT
 
 
-    ; ==============================
-    ; math words!
+; +----------------------------------------------------------------------------+
+; | Math words                                                                 |
+; +----------------------------------------------------------------------------+
 
-    DEFCODE "1+",INCR,0
+DEFCODE "1+",INCR,0
     inc dword [esp]       ; increment top of stack
-    NEXT
+NEXT
 
-    DEFCODE "1-",DECR,0
+DEFCODE "1-",DECR,0
     dec dword [esp]       ; decrement top of stack
-    NEXT
+NEXT
 
-    DEFCODE "4+",INCR4,0
+DEFCODE "4+",INCR4,0
     add dword [esp], 4    ; add 4 to top of stack
-    NEXT
+NEXT
 
-    DEFCODE "4-",DECR4,0
+DEFCODE "4-",DECR4,0
     sub dword [esp], 4   ; subtract 4 from top of stack
-    NEXT
+NEXT
 
-    DEFCODE "+",ADD,0
+DEFCODE "+",ADD,0
     pop eax       ; get top of stack
     add [esp], eax  ; and add it to next word on stack
-    NEXT
+NEXT
 
-    DEFCODE "-",SUB,0
+DEFCODE "-",SUB,0
     pop eax         ; get top of stack
     sub [esp], eax  ; and subtract it from next word on stack
-    NEXT
+NEXT
 
-    DEFCODE "*",MUL,0
+DEFCODE "*",MUL,0
     pop eax
     pop ebx
     imul eax, ebx
     push eax        ; ignore overflow
-    NEXT
+NEXT
 
-    ; In JonesFORTH, /MOD is defined in asm. / and MOD will
-    ; be defined later in FORTH. This is because i386 idiv
-    ; gives us both the quotient and remainder.
-    DEFCODE "/MOD",DIVMOD,0
+; In JonesFORTH, /MOD is defined in asm. / and MOD will
+; be defined later in FORTH. This is because i386 idiv
+; gives us both the quotient and remainder.
+DEFCODE "/MOD",DIVMOD,0
     xor edx, edx
     pop ebx
     pop eax
     idiv ebx
     push edx        ; push remainder
     push eax        ; push quotient
-    NEXT
+NEXT
 
+; +----------------------------------------------------------------------------+
+; | Comparison/conditional words                                               |
+; +----------------------------------------------------------------------------+
 
-    ; ==============================
-    ; comparison/conditional words!
-
-    DEFCODE "=",EQU,0      ;  top two values are equal?
+DEFCODE "=",EQU,0      ;  top two values are equal?
     pop eax
     pop ebx
     cmp eax, ebx
     sete al          ; sete sets operand (al) to 1 if cmp was true
     movzx eax, al    ; movzx moves the value, then fills in zeros
     push eax         ; push answer on stack
-    NEXT
+NEXT
  
-    DEFCODE "<>",NEQU,0    ; top two words are not equal?
+DEFCODE "<>",NEQU,0    ; top two words are not equal?
     pop eax
     pop ebx
     cmp eax, ebx
     setne al
     movzx eax, al
     push eax
-    NEXT
+NEXT
  
-    DEFCODE "<",LT,0
+DEFCODE "<",LT,0
     pop eax
     pop ebx
     cmp ebx, eax
     setl al
     movzx eax, al
     push eax
-    NEXT
+NEXT
  
-    DEFCODE ">",GT,0
+DEFCODE ">",GT,0
     pop eax
     pop ebx
     cmp ebx, eax
     setg al
     movzx eax, al
     push eax
-    NEXT
+NEXT
  
-    DEFCODE "<=",LE,0
+DEFCODE "<=",LE,0
     pop eax
     pop ebx
     cmp ebx, eax
     setle al
     movzx eax, al
     push eax
-    NEXT
+NEXT
  
-    DEFCODE ">=",GE,0
+DEFCODE ">=",GE,0
     pop eax
     pop ebx
     cmp ebx, eax
     setge al
     movzx eax, al
     push eax
-    NEXT
+NEXT
  
-    DEFCODE "0=",ZEQU,0    ; top of stack equals 0?
+DEFCODE "0=",ZEQU,0    ; top of stack equals 0?
     pop eax
     test eax,eax
     setz al
     movzx eax, al
     push eax
-    NEXT
+NEXT
  
-    DEFCODE "0<>",ZNEQU,0    ; top of stack not 0?
+DEFCODE "0<>",ZNEQU,0    ; top of stack not 0?
     pop eax
     test eax,eax
     setnz al
     movzx eax, al
     push eax
-    NEXT
+NEXT
  
-    DEFCODE "0<",ZLT,0    ; greater than zero
+DEFCODE "0<",ZLT,0    ; greater than zero
     pop eax
     test eax,eax
     setl al
     movzx eax, al
     push eax
-    NEXT
+NEXT
  
-    DEFCODE "0>",ZGT,0   ; less than zero
+DEFCODE "0>",ZGT,0   ; less than zero
     pop eax
     test eax,eax
     setg al
     movzx eax, al
     push eax
-    NEXT
+NEXT
  
-    DEFCODE "0<=",ZLE,0
+DEFCODE "0<=",ZLE,0
     pop eax
     test eax,eax
     setle al
     movzx eax,al
     push eax
-    NEXT
+NEXT
  
-    DEFCODE "0>=",ZGE,0
+DEFCODE "0>=",ZGE,0
     pop eax
     test eax,eax
     setge al
     movzx eax,al
     push eax
-    NEXT
+NEXT
 
-    ; ==============================
-    ; bitwise logic words
+; +----------------------------------------------------------------------------+
+; | Bitwise logic words                                                        |
+; +----------------------------------------------------------------------------+
 
-    DEFCODE "AND",AND,0
+DEFCODE "AND",AND,0
     pop eax
     and [esp],eax
-    NEXT
+NEXT
 
-    DEFCODE "OR",OR,0
+DEFCODE "OR",OR,0
     pop eax
     or [esp],eax
-    NEXT
+NEXT
 
-    DEFCODE "XOR",XOR,0
+DEFCODE "XOR",XOR,0
     pop eax
     xor [esp], eax
-    NEXT
+NEXT
 
-    DEFCODE "INVERT",INVERT,0
+DEFCODE "INVERT",INVERT,0
     not dword [esp]
-    NEXT
+NEXT
 
+; +----------------------------------------------------------------------------+
+; | Primitive memory words                                                     |
+; +----------------------------------------------------------------------------+
 
-    ; ==============================
-    ; primitive memory words
-
-    DEFCODE "!",STORE,0
+DEFCODE "!",STORE,0
     pop ebx           ; address to store at
     pop eax           ; data to store there
     mov [ebx], eax
-    NEXT
+NEXT
 
-    DEFCODE "@",FETCH,0
+DEFCODE "@",FETCH,0
     pop ebx                 ; address to fetch
     mov eax, [ebx]          ; fetch it
     push eax                ; push value onto stack
-    NEXT
+NEXT
 
-    DEFCODE "+!",ADDSTORE,0
+DEFCODE "+!",ADDSTORE,0
     pop ebx                ; address
     pop eax                ; the amount to add
     add [ebx], eax
-    NEXT
+NEXT
 
-    DEFCODE "-!",SUBSTORE,0
+DEFCODE "-!",SUBSTORE,0
     pop ebx                ; address
     pop eax                ; the amount to subtract
     sub [ebx], eax
-    NEXT
+NEXT
 
-    ; Primitive byte-oriented operations are like the above 32-bit
-    ; operations, but work on 8 bits. x86 has instructions for this
-    ; so we can define these.
-
-    DEFCODE "C!",STOREBYTE,0
+; Primitive byte-oriented operations are like the above 32-bit
+; operations, but work on 8 bits. x86 has instructions for this
+; so we can define these.
+DEFCODE "C!",STOREBYTE,0
     pop ebx                ; address to store at
     pop eax                ; data to store there
     mov [ebx], al
-    NEXT
+NEXT
 
-    DEFCODE "C@",FETCHBYTE,0
+DEFCODE "C@",FETCHBYTE,0
     pop ebx               ; address to fetch
     xor eax, eax          ; clear the register
     mov al, [ebx]         ; grab a byte
     push eax
-    NEXT
+NEXT
 
-    DEFCODE "C@C!",CCOPY,0 ; byte copy
+DEFCODE "C@C!",CCOPY,0 ; byte copy
     mov ebx, [esp+4]      ; source address
     mov al, [ebx]         ; source byte
     pop edi               ; destination address
     stosb                 ; copy to destination
     push edi              ; increment destination address
     inc byte [esp+4]      ; increment source address
-    NEXT
+NEXT
 
-    DEFCODE "CMOVE",CMOVE,0 ; copy n bytes
+DEFCODE "CMOVE",CMOVE,0 ; copy n bytes
     mov edx, esi          ; preserve esi
     pop ecx               ; length
     pop edi               ; destination address
     pop esi               ; source address
     rep movsb             ; copy source to destination
     mov esi, edx          ; restore esi
-    NEXT
+NEXT
 
-    ; ===============================
-    ; Return stack manipulation words
-    ; ebp is the return stack pointer (RSP)
+; +----------------------------------------------------------------------------+
+; | Return stack manipulation words                                            |
+; +----------------------------------------------------------------------------+
+; ebp is the return stack pointer (RSP)
+; In traditional Forth implementations, you're encouraged to put temporary
+; values on the return stack (and you'd better not forget to clean up after
+; yourself! Can you imagine proposing that to someone today? You'd be burned
+; at the stake as a heretic!
 
-    DEFCODE ">R",TOR,0  ; move value from param stack to return stack
+DEFCODE ">R",TOR,0  ; move value from param stack to return stack
     pop eax
     PUSHRSP eax
-    NEXT
+NEXT
 
-    DEFCODE "R>",FROMR,0 ; move value from return stack to param stack
+DEFCODE "R>",FROMR,0 ; move value from return stack to param stack
     POPRSP eax
     push eax
-    NEXT
+NEXT
 
-    DEFCODE "RSP@",RSPFETCH,0 ; get the actual address RSP points to
+DEFCODE "RSP@",RSPFETCH,0 ; get the actual address RSP points to
     push ebp
-    NEXT
+NEXT
 
-    DEFCODE "RSP!",RSPSTORE,0 ; set the address RSP points to
+DEFCODE "RSP!",RSPSTORE,0 ; set the address RSP points to
     pop ebp
-    NEXT
+NEXT
 
-    DEFCODE "RDROP",RDROP,0 ; move RSP to "pop" value and throw it away
+DEFCODE "RDROP",RDROP,0 ; move RSP to "pop" value and throw it away
     add ebp, 4
-    NEXT
+NEXT
 
+; +----------------------------------------------------------------------------+
+; | Param stack manipulation words                                             |
+; +----------------------------------------------------------------------------+
+; esp is the param (or "data" or "main") stack pointer (DSP)
 
-    ; ===============================
-    ; Param stack maniputation words
-    ; esp is the param ("data") stack pointer (DSP)
-
-    DEFCODE "DSP@",DSPFETCH,0
+DEFCODE "DSP@",DSPFETCH,0
     mov eax, esp
     push eax
-    NEXT
+NEXT
 
-    DEFCODE "DSP!",DSPSTORE,0
+DEFCODE "DSP!",DSPSTORE,0
     pop esp
-    NEXT
+NEXT
 
+; +----------------------------------------------------------------------------+
+; | Misc words needed for interpreter/compiler                                 |
+; +----------------------------------------------------------------------------+
 
-    ; ===========================================
-    ; misc words needed for interpreter/compiler
-
-    DEFCODE "IMMEDIATE",IMMEDIATE,F_IMMED ; makes latest word immediate
+DEFCODE "IMMEDIATE",IMMEDIATE,F_IMMED ; makes latest word immediate
     mov edi, [var_LATEST]     ; addr of LATEST word.
     add edi, 4                ; Point to name/flags byte.
     xor byte [edi], F_IMMED   ; Toggle the IMMED bit.
-    NEXT
+NEXT
 
-    DEFWORD "HIDE",HIDE,0
+DEFWORD "HIDE",HIDE,0
     dd FWORD        ; Get the word (after HIDE).
     dd FIND        ; Look up in the dictionary.
     dd HIDDEN      ; Set F_HIDDEN flag.
-    dd EXIT        ; Return.
+dd EXIT        ; Return.
 
-    DEFCODE "CHAR",CHAR,0
+DEFCODE "CHAR",CHAR,0
     call _WORD              ; Returns %ecx = length, %edi = pointer to word.
     xor eax,eax
     mov al,[edi]            ; Get the first character of the word.
     push eax                ; Push it onto the stack.
-    NEXT
+NEXT
 
-    DEFCODE "EXECUTE",EXECUTE,0
+DEFCODE "EXECUTE",EXECUTE,0
     pop eax                ; Get xt into %eax
-    jmp [eax]              ; and jump to it.
-                           ; After xt runs its NEXT will continue executing the current word.
+    jmp [eax]              ; and jump to it. After xt runs its NEXT will
+                           ; continue executing the current word.
 
-    DEFCODE "SYSCALL3",SYSCALL3,0
+DEFCODE "SYSCALL3",SYSCALL3,0
     pop eax                ; System call number (see <asm/unistd.h>)
     pop ebx                ; First parameter.
     pop ecx                ; Second parameter
     pop edx                ; Third parameter
     int 80h
     push eax               ; Result (negative for -errno)
-    NEXT
+NEXT
 
-    DEFCODE "SYSCALL2",SYSCALL2,0
+DEFCODE "SYSCALL2",SYSCALL2,0
     pop eax                ; System call number (see <asm/unistd.h>)
     pop ebx                ; First parameter.
     pop ecx                ; Second parameter
     int 80h
     push eax               ; Result (negative for -errno)
-    NEXT
+NEXT
 
-    DEFCODE "SYSCALL1",SYSCALL1,0
+DEFCODE "SYSCALL1",SYSCALL1,0
     pop eax                ; System call number (see <asm/unistd.h>)
     pop ebx                ; First parameter.
     int 80h
     push eax               ; Result (negative for -errno)
-    NEXT
+NEXT
 
-    DEFCODE "SYSCALL0",SYSCALL0,0
+DEFCODE "SYSCALL0",SYSCALL0,0
     pop eax                ; System call number (see <asm/unistd.h>)
     int 80h
     push eax               ; Result (negative for -errno)
-    NEXT
+NEXT
 
 ; +----------------------------------------------------------------------------+
-; Forth constants:
+; | Forth constants                                                            |
+; +----------------------------------------------------------------------------+
 ;
-;  VERSION        Is the current version of this FORTH.
-;  R0        The address of the top of the return stack.
+;  VERSION      Is the current version of this FORTH.
+;  R0           The address of the top of the return stack.
 ;  DOCOL        Pointer to DOCOL.
-;  F_IMMED        The IMMEDIATE flag's actual value.
-;  F_HIDDEN    The HIDDEN flag's actual value.
+;  F_IMMED      The IMMEDIATE flag's actual value.
+;  F_HIDDEN     The HIDDEN flag's actual value.
 ;  F_LENMASK    The length mask in the flags/len byte.
-;  SYS_*        and the numeric codes of various Linux syscalls (from <asm/unistd.h>)
-
-
+;  SYS_*        and the numeric codes of various Linux syscalls
+;
 ; Check it out! A const is just a word that pushes a value!
 %macro DEFCONST 4 ; 1=name 2=label 3=flags 4=value
-        DEFCODE %1,%2,%3
-        push %4
-        NEXT
+    DEFCODE %1,%2,%3
+    push %4
+    NEXT
 %endmacro
 
-    DEFCONST "VERSION",VERSION,0,NASMJF_VERSION
-    DEFCONST "R0",R0,0,return_stack_top
-    DEFCONST "DOCOL",__DOCOL,0,DOCOL
-    DEFCONST "F_IMMED",__F_IMMED,0,F_IMMED
-    DEFCONST "F_HIDDEN",__F_HIDDEN,0,F_HIDDEN
-    DEFCONST "F_LENMASK",__F_LENMASK,0,F_LENMASK
+DEFCONST "VERSION",VERSION,0,NASMJF_VERSION
+DEFCONST "R0",R0,0,return_stack_top
+DEFCONST "DOCOL",__DOCOL,0,DOCOL
+DEFCONST "F_IMMED",__F_IMMED,0,F_IMMED
+DEFCONST "F_HIDDEN",__F_HIDDEN,0,F_HIDDEN
+DEFCONST "F_LENMASK",__F_LENMASK,0,F_LENMASK
 
-    DEFCONST "SYS_EXIT",SYS_EXIT,0,__NR_exit
-    DEFCONST "SYS_OPEN",SYS_OPEN,0,__NR_open
-    DEFCONST "SYS_CLOSE",SYS_CLOSE,0,__NR_close
-    DEFCONST "SYS_READ",SYS_READ,0,__NR_read
-    DEFCONST "SYS_WRITE",SYS_WRITE,0,__NR_write
-    DEFCONST "SYS_CREAT",SYS_CREAT,0,__NR_creat
-    DEFCONST "SYS_BRK",SYS_BRK,0,__NR_brk
+DEFCONST "SYS_EXIT",SYS_EXIT,0,__NR_exit
+DEFCONST "SYS_OPEN",SYS_OPEN,0,__NR_open
+DEFCONST "SYS_CLOSE",SYS_CLOSE,0,__NR_close
+DEFCONST "SYS_READ",SYS_READ,0,__NR_read
+DEFCONST "SYS_WRITE",SYS_WRITE,0,__NR_write
+DEFCONST "SYS_CREAT",SYS_CREAT,0,__NR_creat
+DEFCONST "SYS_BRK",SYS_BRK,0,__NR_brk
 
-    DEFCONST "O_RDONLY",__O_RDONLY,0,0
-    DEFCONST "O_WRONLY",__O_WRONLY,0,1
-    DEFCONST "O_RDWR",__O_RDWR,0,2
-    DEFCONST "O_CREAT",__O_CREAT,0,0100
-    DEFCONST "O_EXCL",__O_EXCL,0,0200
-    DEFCONST "O_TRUNC",__O_TRUNC,0,01000
-    DEFCONST "O_APPEND",__O_APPEND,0,02000
-    DEFCONST "O_NONBLOCK",__O_NONBLOCK,0,04000
+DEFCONST "O_RDONLY",__O_RDONLY,0,0
+DEFCONST "O_WRONLY",__O_WRONLY,0,1
+DEFCONST "O_RDWR",__O_RDWR,0,2
+DEFCONST "O_CREAT",__O_CREAT,0,0100
+DEFCONST "O_EXCL",__O_EXCL,0,0200
+DEFCONST "O_TRUNC",__O_TRUNC,0,01000
+DEFCONST "O_APPEND",__O_APPEND,0,02000
+DEFCONST "O_NONBLOCK",__O_NONBLOCK,0,04000
 
-; ============================================================
-; Built-in vars:
+; +----------------------------------------------------------------------------+
+; | Forth built-in variables                                                   |
+; +----------------------------------------------------------------------------+
+;
 ;   STATE   Is the interpreter executing code (0) or compiling a word (non-zero)?
 ;   LATEST  Points to the latest (most recently defined) word in the dictionary.
 ;   HERE    Points to the next free byte of memory.  When compiling, compiled words go here.
 ;   S0      Stores the address of the top of the parameter stack.
 ;   BASE    The current base for printing and reading numbers.
 ;  
-
+; A variable is a word that leaves its *address* on the stack. Use '@' and '!' to
+; read or write a *value* at that address.
 %macro DEFVAR 4 ; 1=name 2=label 3=flags 4=value
         DEFCODE %1,%2,%3
         push dword var_%2
-        NEXT
+    NEXT
     section .data
         align 4
     var_%2:   ; Give it an asm label. Example: var_SZ for 'S0'
         dd %4 ; note dd to reserve a "double" (4b)
 %endmacro
 
-    DEFVAR "STATE",STATE,0,0
-    DEFVAR "HERE",HERE,0,0
-    DEFVAR "S0",SZ,0,0
-    DEFVAR "BASE",BASE,0,10
-    DEFVAR "CSTART",CSTART,0,0
-    DEFVAR "CEND",CEND,0,0
-    DEFVAR "READFROM",READFROM,0,read_from_fd ; LOADJF - make available to Forth???
-    DEFVAR "LATEST",LATEST,0,name_LATEST ; points to last word defined...which will just
+DEFVAR "STATE",STATE,0,0
+DEFVAR "HERE",HERE,0,0
+DEFVAR "S0",SZ,0,0
+DEFVAR "BASE",BASE,0,10
+DEFVAR "CSTART",CSTART,0,0
+DEFVAR "CEND",CEND,0,0
+DEFVAR "READFROM",READFROM,0,read_from_fd ; LOADJF - make available to Forth???
+DEFVAR "LATEST",LATEST,0,name_LATEST      ; points to last word defined...which will just
                                           ; happen to be self. We'll see if this works.
 
-
-; TODO: instead of these silly 0,0,0,0 placeholders, use dd (double)
-
+; +----------------------------------------------------------------------------+
+; | Data section - reserve memory for interpreter use                          |
+; +----------------------------------------------------------------------------+
+;
+; db - "define byte(s)"
+; dd - "define double"   (4 bytes)
+;
 SECTION    .data
     align 4
-currkey: db 0,0,0,0  ; Current place in input buffer (next character to read).
-bufftop: db 0,0,0,0  ; Last valid data in input buffer + 1.
-interpret_is_lit: db 0,0,0,0 ; 1 means "reading a literal"
-read_from_fd: dd 0 ; 0=STDIN, etc.
+currkey: dd 0          ; Current place in input buffer (next character to read).
+bufftop: dd 0          ; Last valid data in input buffer + 1.
+interpret_is_lit: dd 0 ; 1 means "reading a literal"
+read_from_fd: dd 0     ; 0=STDIN, etc.
 errmsg: db "PARSE ERROR: "
 errmsgend:
 errmsgnl: db `\n`
-loadjf_fail_msg: db "ERROR Could not open '"
-loadjf_fail_msg_end:
-loadjf_fail_msg2: db "'."
-db `\n`
-loadjf_fail_msg_end2:
+loadjf_fail_msg: db "ERROR Could not open '" ; LOADJF
+loadjf_fail_msg_end:                         ; LOADJF
+loadjf_fail_msg2: db "'."                    ; LOADJF
+db `\n`                                      ; LOADJF
+loadjf_fail_msg_end2:                        ; LOADJF
