@@ -74,6 +74,16 @@ $ ./nasmjf
 A
 ----
 
+If you're going to use JONESFORTH for anything longer than a simple line or
+two, I _highly_ recommend wrapping it in `readline` with the excellent `rlwrap`
+(https://github.com/hanslub42/rlwrap) like so:
+
+----
+$ rlwrap ./nasmjf
+----
+
+Then you'll have line editing, history (up arrow lets you re-enter and edit the
+last line), and even persistent history between Forth sessions!
 
 == Loads Jones's FORTH source on start
 
