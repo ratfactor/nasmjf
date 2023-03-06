@@ -13,7 +13,11 @@ F=nasmjf
 
 # assemble and link! (-g enables debugging symbols)
 nasm -f elf32 -g -o $F.o $F.asm
-ld $F.o -o $F
+if [ $(uname -m | grep 64) ]; then
+  ld -m elf_i386 $F.o -s -o $F
+else
+  ld $F.o -o $F
+fi
 rm $F.o
 
 if [[ $1 == 'gdb' ]]
