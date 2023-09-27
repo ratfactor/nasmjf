@@ -1,5 +1,10 @@
 = nasmjf - a NASM port of JONESFORTH
 
+
+**MOVED!** Hello, I am moving my repos to http://ratfactor.com/repos/
+and setting them to read-only ("archived") on GitHub. Thank you, _-Dave_
+
+
 This is a fully-functioning Forth interpreter faithfully ported from the original
 by Richard W.M. Jones:
 
